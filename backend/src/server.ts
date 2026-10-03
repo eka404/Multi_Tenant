@@ -5,6 +5,7 @@ import { env } from "./config/env.js";
 import { connectDB } from "./config/db.js";
 import authRoutes from "./routes/authRoute.js";
 import cookieParser from "cookie-parser";
+import orgRoutes from "./routes/orgRoutes.js";
 
 const app = express();
 app.use(cors());
@@ -15,6 +16,7 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 app.use("/api/auth", authRoutes);
+app.use("/api/orgs", orgRoutes);
 
 connectDB().then(() =>
   app.listen(env.port, () => console.log(`Server running on ${env.port}`))
