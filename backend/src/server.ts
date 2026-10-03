@@ -6,6 +6,8 @@ import { connectDB } from "./config/db.js";
 import authRoutes from "./routes/authRoute.js";
 import cookieParser from "cookie-parser";
 import orgRoutes from "./routes/orgRoutes.js";
+import projectRoutes from "./routes/projectRoutes.js";
+import ticketRoutes from "./routes/ticketRoutes.js";
 
 const app = express();
 app.use(cors());
@@ -17,6 +19,8 @@ app.get("/api/health", (_req, res) => {
 });
 app.use("/api/auth", authRoutes);
 app.use("/api/orgs", orgRoutes);
+app.use("/api/orgs", projectRoutes);
+app.use("/api/orgs", ticketRoutes);
 
 connectDB().then(() =>
   app.listen(env.port, () => console.log(`Server running on ${env.port}`))
