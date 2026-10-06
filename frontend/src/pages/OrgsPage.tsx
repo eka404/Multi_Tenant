@@ -4,7 +4,7 @@ import * as orgsApi from "../api/orgs";
 
 export default function OrgsPage() {
   const navigate = useNavigate();
-  const [orgs, setOrgs] = useState<orgsApi.Organization[]>([]);
+  const [orgs, setOrgs] = useState<orgsApi.OrganizationMembership[]>([]);
   const [newOrgName, setNewOrgName] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -29,9 +29,13 @@ export default function OrgsPage() {
     <div>
       <h1>Your organizations</h1>
       <ul>
-        {orgs.map((org) => (
-          <li key={org._id}>
-            <button onClick={() => navigate(`/orgs/${org._id}/projects`)}>{org.name}</button>
+        {orgs.map((org, index) => (
+          <li key={org?._id ?? `unavailable-${index}`}>
+            {org ? (
+              <button onClick={() => navigate(`/orgs/${org._id}/projects`)}>{org.name}</button>
+            ) : (
+              <span>Organization unavailable</span>
+            )}
           </li>
         ))}
       </ul>

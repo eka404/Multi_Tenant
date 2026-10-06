@@ -6,6 +6,8 @@ export interface Organization {
   ownerId: string;
 }
 
+export type OrganizationMembership = Organization | null;
+
 export interface Project {
   _id: string;
   orgId: string;
@@ -28,6 +30,6 @@ export async function createProject(orgId: string, name: string) {
 }
 
 export async function listMyOrgs() {
-  const { data } = await api.get<{ organizations: Organization[] }>("/orgs/mine");
+  const { data } = await api.get<{ organizations: OrganizationMembership[] }>("/orgs/mine");
   return data.organizations;
 }

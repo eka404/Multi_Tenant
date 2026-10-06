@@ -1,4 +1,4 @@
-import {Schema, model, InferSchemaType, Types} from "mongoose";
+import {Schema, model, InferSchemaType} from "mongoose";
 
 const organizationSchema = new Schema(
     {
@@ -9,4 +9,4 @@ const organizationSchema = new Schema(
 );
 
 export type IOrganization = InferSchemaType<typeof organizationSchema>;
-export const Organization = model("Organisation", organizationSchema);
+export const Organization = model("Organization", organizationSchema);
