@@ -19,6 +19,11 @@ export async function createOrg(req: AuthedRequest, res: Response){
     res.status(201).json({org});
 }
 
+export async function listMyOrgs(req: AuthedRequest, res: Response) {
+  const memberships = await Membership.find({ userId: req.userId }).populate("orgId");
+  res.json({ organizations: memberships.map((m) => m.orgId) });
+}
+
 export async function inviteMember(req: OrgScopedRequest, res: Response){
     const {email,role} = req.body as {email?:string, role?:string};
     if(!email || !role) return res.status(400).json({ message: "email and role are required" });
