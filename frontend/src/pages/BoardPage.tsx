@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { DndContext, type DragEndEvent } from "@dnd-kit/core";
 import * as ticketsApi from "../api/tickets";
 import BoardColumn from "../components/BoardColumn";
+import { connectSocket } from "../socket";
 
 const STATUSES: ticketsApi.Status[] = ["todo", "in_progress", "review", "done"];
 
@@ -19,6 +20,33 @@ export default function BoardPage() {
       setLoading(false);
     });
   }, [orgId, projectId]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    const socket = connectSocket();
+    socket.emit("joinProject", projectId);
+
+    function handleUpdated(updated: ticketsApi.Ticket) {
+      setTickets((prev) => prev.map((t) => (t._id === updated._id ? updated : t)));
+    }
+    function handleCreated(created: ticketsApi.Ticket) {
+      setTickets((prev) => (prev.some((t) => t._id === created._id) ? prev : [...prev, created]));
+    }
+    function handleDeleted({ ticketId }: { ticketId: string }) {
+      setTickets((prev) => prev.filter((t) => t._id !== ticketId));
+    }
+
+    socket.on("ticket:updated", handleUpdated);
+    socket.on("ticket:created", handleCreated);
+    socket.on("ticket:deleted", handleDeleted);
+
+    return () => {
+      socket.emit("leaveProject", projectId);
+      socket.off("ticket:updated", handleUpdated);
+      socket.off("ticket:created", handleCreated);
+      socket.off("ticket:deleted", handleDeleted);
+    };
+  }, [projectId]);
 
   async function handleCreateTicket(e: FormEvent) {
     e.preventDefault();
@@ -37,7 +65,6 @@ export default function BoardPage() {
     const ticket = tickets.find((t) => t._id === ticketId);
     if (!ticket || ticket.status === newStatus) return;
 
-    // optimistic update — the UI moves the card immediately
     setTickets((prev) =>
       prev.map((t) => (t._id === ticketId ? { ...t, status: newStatus } : t))
     );
@@ -45,7 +72,6 @@ export default function BoardPage() {
     try {
       await ticketsApi.updateTicketStatus(orgId, ticketId, newStatus);
     } catch {
-      // revert on failure — the PATCH rejected the move
       setTickets((prev) =>
         prev.map((t) => (t._id === ticketId ? { ...t, status: ticket.status } : t))
       );

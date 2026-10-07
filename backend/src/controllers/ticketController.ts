@@ -2,6 +2,7 @@ import { Ticket, STATUSES, PRIORITIES } from "../models/Ticket.js";
 import { Project } from "../models/Project.js";
 import type { Response } from "express";
 import type { OrgScopedRequest } from "../middlewares/requireOrgMembership.js";
+import { getIO } from "../socket.js";
 
 async function assertProjectInOrg(projectId:string, orgId:string) {
     const project = await Project.findOne({_id:projectId, orgId});
@@ -39,6 +40,7 @@ export async function createTicket(req:OrgScopedRequest, res:Response) {
         labels,
         createdBy: req.userId,
     });
+    getIO().to(`project:${ticket.projectId}`).emit("ticket:created", ticket);
     res.status(201).json({ ticket });
 }
 
@@ -69,12 +71,14 @@ export async function updateTicket(req:OrgScopedRequest, res:Response) {
         {new:true}
     );
     if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+    getIO().to(`project:${ticket.projectId}`).emit("ticket:updated", ticket);
     res.json({ticket});
 }
 
 export async function deleteTicket(req: OrgScopedRequest, res: Response) {
-  const { ticketId } = req.params;
-  const ticket = await Ticket.findOneAndDelete({ _id: ticketId, orgId: req.membership!.orgId });
-  if (!ticket) return res.status(404).json({ message: "Ticket not found" });
-  res.json({ message: "Deleted" });
+    const { ticketId } = req.params;
+    const ticket = await Ticket.findOneAndDelete({ _id: ticketId, orgId: req.membership!.orgId });
+    if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+    getIO().to(`project:${ticket.projectId}`).emit("ticket:deleted", { ticketId });
+    res.json({ message: "Deleted" });
 }

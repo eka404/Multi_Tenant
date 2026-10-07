@@ -8,6 +8,8 @@ import cookieParser from "cookie-parser";
 import orgRoutes from "./routes/orgRoutes.js";
 import projectRoutes from "./routes/projectRoutes.js";
 import ticketRoutes from "./routes/ticketRoutes.js";
+import http from "http";
+import { initSocket } from "./socket.js";
 
 const app = express();
 app.use(cors({ origin: "http://localhost:5173", credentials: true }));
@@ -22,6 +24,9 @@ app.use("/api/orgs", orgRoutes);
 app.use("/api/orgs", projectRoutes);
 app.use("/api/orgs", ticketRoutes);
 
+const httpServer = http.createServer(app);
+initSocket(httpServer);
+
 connectDB().then(() =>
-  app.listen(env.port, () => console.log(`Server running on ${env.port}`))
+  httpServer.listen(env.port, () => console.log(`Server running on ${env.port}`))
 );
