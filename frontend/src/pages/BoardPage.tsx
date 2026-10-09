@@ -1,9 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useParams } from "react-router-dom";
-import { DndContext, type DragEndEvent } from "@dnd-kit/core";
 import * as ticketsApi from "../api/tickets";
 import BoardColumn from "../components/BoardColumn";
 import { connectSocket } from "../socket";
+import { Link, useParams } from "react-router-dom";
+import {DndContext, MouseSensor, TouchSensor, useSensor, useSensors, type DragEndEvent} from "@dnd-kit/core";
 
 const STATUSES: ticketsApi.Status[] = ["todo", "in_progress", "review", "done"];
 
@@ -111,32 +111,46 @@ export default function BoardPage() {
       );
     }
   }
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
+  );
 
   if (!orgId || !projectId) return <p role="alert">Organization or project is missing.</p>;
-  if (loading) return <p>Loading...</p>;
+  if (loading) return <p className="text-slate-400">Loading board...</p>;
 
   return (
     <div>
-      <form onSubmit={handleCreateTicket}>
-        <input
-          placeholder="New ticket title"
-          value={newTitle}
-          onChange={(e) => setNewTitle(e.target.value)}
-        />
-        <button type="submit" disabled={creatingTicket || !newTitle.trim()}>
-          {creatingTicket ? "Adding..." : "Add ticket"}
-        </button>
-      </form>
-      {error && <p role="alert">{error}</p>}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <Link to={`/orgs/${orgId}/projects`} className="text-sm text-slate-400 hover:text-slate-200">
+          ← Projects
+        </Link>
+        <form onSubmit={handleCreateTicket} className="flex w-full gap-2 sm:w-auto">
+          <input
+            className="input sm:w-72"
+            placeholder="New ticket title"
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+          />
+          <button
+            type="submit"
+            className="btn-primary shrink-0"
+            disabled={creatingTicket || !newTitle.trim()}
+          >
+            {creatingTicket ? "Adding..." : "Add ticket"}
+          </button>
+        </form>
+      </div>
+      {error && <p role="alert" className="mb-4 text-red-400">{error}</p>}
 
-      <DndContext onDragEnd={handleDragEnd}>
-        <div className="board">
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <div className="flex gap-4 overflow-x-auto pb-4">
           {STATUSES.map((status) => (
             <BoardColumn
               key={status}
               status={status}
-              orgId={orgId}
               tickets={tickets.filter((t) => t.status === status)}
+              orgId={orgId}
             />
           ))}
         </div>

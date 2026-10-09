@@ -31,5 +31,5 @@ export async function createProject(orgId: string, name: string) {
 
 export async function listMyOrgs() {
   const { data } = await api.get<{ organizations: OrganizationMembership[] }>("/orgs/mine");
-  return data.organizations;
+  return data.organizations.filter((org): org is Organization => org !== null);
 }

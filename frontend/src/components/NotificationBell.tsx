@@ -18,20 +18,8 @@ export default function NotificationBell() {
     refresh();
     const socket = connectSocket();
     socket.on("notification:new", refresh);
-    function handleTicketNotificationsRead(event: Event) {
-      const { ticketId } = (event as CustomEvent<{ ticketId: string }>).detail;
-      setItems((current) =>
-        current.map((notification) => (
-          notification.ticketId?._id === ticketId
-            ? { ...notification, read: true }
-            : notification
-        ))
-      );
-    }
-    window.addEventListener("ticket-notifications-read", handleTicketNotificationsRead);
     return () => {
       socket.off("notification:new", refresh);
-      window.removeEventListener("ticket-notifications-read", handleTicketNotificationsRead);
     };
   }, []);
 
@@ -52,29 +40,45 @@ export default function NotificationBell() {
   }
 
   return (
-    <div className="bell">
-      <button onClick={() => setOpen((o) => !o)}>
-        🔔{unread > 0 && <span className="bell-badge">{unread}</span>}
+    <div className="relative">
+      <button onClick={() => setOpen((o) => !o)} className="btn-ghost relative" aria-label="Notifications">
+        🔔
+        {unread > 0 && (
+          <span className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">
+            {unread}
+          </span>
+        )}
       </button>
 
       {open && (
-        <div className="bell-dropdown">
-          <div className="bell-header">
-            <strong>Notifications</strong>
-            {unread > 0 && <button onClick={handleMarkAll}>Mark all read</button>}
-          </div>
-          {items.length === 0 && <p>Nothing yet</p>}
-          {items.map((n) => (
-            <div
-              key={n._id}
-              className={`bell-item ${n.read ? "" : "bell-unread"}`}
-              onClick={() => handleClick(n)}
-            >
-              {n.type === "mention" ? "You were mentioned on" : "New comment on"}{" "}
-              <em>{n.ticketId?.title ?? "a deleted ticket"}</em>
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 z-20 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-800 bg-slate-900 p-2 shadow-xl">
+            <div className="flex items-center justify-between px-2 py-1">
+              <strong className="text-sm">Notifications</strong>
+              {unread > 0 && (
+                <button onClick={handleMarkAll} className="text-xs text-indigo-400 hover:underline">
+                  Mark all read
+                </button>
+              )}
             </div>
-          ))}
-        </div>
+            {items.length === 0 && <p className="px-2 py-4 text-center text-sm text-slate-500">Nothing yet</p>}
+            <div className="max-h-80 overflow-y-auto">
+              {items.map((n) => (
+                <div
+                  key={n._id}
+                  onClick={() => handleClick(n)}
+                  className={`cursor-pointer rounded-md px-2 py-2 text-sm hover:bg-slate-800 ${
+                    n.read ? "text-slate-400" : "border-l-2 border-indigo-500 text-slate-100"
+                  }`}
+                >
+                  {n.type === "mention" ? "You were mentioned on" : "New comment on"}{" "}
+                  <em>{n.ticketId?.title ?? "a deleted ticket"}</em>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
