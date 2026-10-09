@@ -6,8 +6,13 @@ import {
   markAllRead,
   markTicketNotificationsRead,
 } from "../controllers/notificationController.js";
+import { validateObjectId } from "../middlewares/validateId.js";
 
 const router = Router();
+
+router.param("orgId", validateObjectId);
+router.param("notificationId", validateObjectId);
+
 router.use(verifyToken);
 
 router.get("/", listNotifications);

@@ -4,6 +4,7 @@ import { Membership } from "../models/Membership.js";
 import { User } from "../models/User.js";
 import type { AuthedRequest } from "../middlewares/auth.js";
 import type { OrgScopedRequest } from "../middlewares/requireOrgMembership.js";
+import { roleRank } from "../middlewares/requireOrgMembership.js";
 import { ROLES, type Role } from "../models/Membership.js";
 
 function isRole(value: string): value is Role {
@@ -29,6 +30,9 @@ export async function inviteMember(req: OrgScopedRequest, res: Response){
     if(!email || !role) return res.status(400).json({ message: "email and role are required" });
 
     if(!isRole(role)) return res.status(400).json({ message: `role must be one of: ${ROLES.join(", ")}` });
+    if (roleRank[role] >= roleRank[req.membership!.role]) {
+        return res.status(403).json({ message: "You can only grant roles below your own" });
+    }
 
     const user = await User.findOne({email:email.toLowerCase().trim()});
     if(!user) return res.status(404).json({message: "No registered user with that email"});

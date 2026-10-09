@@ -6,7 +6,7 @@ export interface OrgScopedRequest extends AuthedRequest {
   membership?: { orgId: string; role: Role };
 }
 
-const roleRank: Record<Role, number> = {guest: 0, contributor: 1, lead: 2, owner: 3};
+export const roleRank: Record<Role, number> = {guest: 0, contributor: 1, lead: 2, owner: 3};
 
 export function requireOrgMembership(minRole: Role = "guest") {
   return async (req: OrgScopedRequest, res: Response, next: NextFunction) => {
