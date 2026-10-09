@@ -10,6 +10,8 @@ import projectRoutes from "./routes/projectRoutes.js";
 import ticketRoutes from "./routes/ticketRoutes.js";
 import http from "http";
 import { initSocket } from "./socket.js";
+import commentRoutes from "./routes/commentRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 
 const app = express();
 app.use(cors({ origin: "http://localhost:5173", credentials: true }));
@@ -23,6 +25,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/orgs", orgRoutes);
 app.use("/api/orgs", projectRoutes);
 app.use("/api/orgs", ticketRoutes);
+app.use("/api/orgs", commentRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 const httpServer = http.createServer(app);
 initSocket(httpServer);

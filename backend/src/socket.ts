@@ -22,6 +22,7 @@ export function initSocket(httpServer: HTTPServer): Server {
     }
   });
   io.on("connection", (socket: AuthedSocket) => {
+    socket.join(`user:${socket.userId}`);
     socket.on("joinProject", (projectId: string) => socket.join(`project:${projectId}`));
     socket.on("leaveProject", (projectId: string) => socket.leave(`project:${projectId}`));
   });

@@ -12,9 +12,11 @@ const COLUMN_LABELS: Record<Status, string> = {
 export default function BoardColumn({
   status,
   tickets,
+  orgId,
 }: {
   status: Status;
   tickets: Ticket[];
+  orgId: string;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
 
@@ -26,7 +28,7 @@ export default function BoardColumn({
     >
       <h3>{COLUMN_LABELS[status]}</h3>
       {tickets.map((ticket) => (
-        <TicketCard key={ticket._id} ticket={ticket} />
+        <TicketCard key={ticket._id} ticket={ticket} orgId={orgId} />
       ))}
     </div>
   );

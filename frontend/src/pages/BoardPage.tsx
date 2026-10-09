@@ -12,13 +12,38 @@ export default function BoardPage() {
   const [tickets, setTickets] = useState<ticketsApi.Ticket[]>([]);
   const [newTitle, setNewTitle] = useState("");
   const [loading, setLoading] = useState(true);
+  const [creatingTicket, setCreatingTicket] = useState(false);
+  const [error, setError] = useState("");
+
+  function mergeTickets(current: ticketsApi.Ticket[], incoming: ticketsApi.Ticket[]) {
+    const byId = new Map(current.map((ticket) => [ticket._id, ticket]));
+    incoming.forEach((ticket) => byId.set(ticket._id, ticket));
+    return [...byId.values()];
+  }
 
   useEffect(() => {
-    if (!orgId || !projectId) return;
-    ticketsApi.listTickets(orgId, projectId).then((data) => {
-      setTickets(data);
+    if (!orgId || !projectId) {
+      setError("Organization or project is missing.");
       setLoading(false);
-    });
+      return;
+    }
+    let active = true;
+    setTickets([]);
+    setLoading(true);
+    setError("");
+    ticketsApi.listTickets(orgId, projectId)
+      .then((data) => {
+        if (active) setTickets((current) => mergeTickets(current, data));
+      })
+      .catch(() => {
+        if (active) setError("Could not load tickets. Please try again.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [orgId, projectId]);
 
   useEffect(() => {
@@ -30,7 +55,7 @@ export default function BoardPage() {
       setTickets((prev) => prev.map((t) => (t._id === updated._id ? updated : t)));
     }
     function handleCreated(created: ticketsApi.Ticket) {
-      setTickets((prev) => (prev.some((t) => t._id === created._id) ? prev : [...prev, created]));
+      setTickets((prev) => mergeTickets(prev, [created]));
     }
     function handleDeleted({ ticketId }: { ticketId: string }) {
       setTickets((prev) => prev.filter((t) => t._id !== ticketId));
@@ -50,10 +75,19 @@ export default function BoardPage() {
 
   async function handleCreateTicket(e: FormEvent) {
     e.preventDefault();
-    if (!orgId || !projectId || !newTitle.trim()) return;
-    const ticket = await ticketsApi.createTicket(orgId, projectId, newTitle.trim());
-    setTickets((prev) => [...prev, ticket]);
-    setNewTitle("");
+    const title = newTitle.trim();
+    if (!orgId || !projectId || !title || creatingTicket) return;
+    setCreatingTicket(true);
+    setError("");
+    try {
+      const ticket = await ticketsApi.createTicket(orgId, projectId, title);
+      setTickets((prev) => mergeTickets(prev, [ticket]));
+      setNewTitle("");
+    } catch {
+      setError("Could not create the ticket. Please try again.");
+    } finally {
+      setCreatingTicket(false);
+    }
   }
 
   async function handleDragEnd(event: DragEndEvent) {
@@ -78,6 +112,7 @@ export default function BoardPage() {
     }
   }
 
+  if (!orgId || !projectId) return <p role="alert">Organization or project is missing.</p>;
   if (loading) return <p>Loading...</p>;
 
   return (
@@ -88,8 +123,11 @@ export default function BoardPage() {
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
         />
-        <button type="submit">Add ticket</button>
+        <button type="submit" disabled={creatingTicket || !newTitle.trim()}>
+          {creatingTicket ? "Adding..." : "Add ticket"}
+        </button>
       </form>
+      {error && <p role="alert">{error}</p>}
 
       <DndContext onDragEnd={handleDragEnd}>
         <div className="board">
@@ -97,6 +135,7 @@ export default function BoardPage() {
             <BoardColumn
               key={status}
               status={status}
+              orgId={orgId}
               tickets={tickets.filter((t) => t.status === status)}
             />
           ))}

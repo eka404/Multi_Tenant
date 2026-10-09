@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import * as authApi from "../api/auth";
 import { setAccessToken } from "../api/client";
+import { disconnectSocket } from "../socket";
 
 interface AuthContextValue {
   user: authApi.User | null;
@@ -42,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function logout() {
     await authApi.logout();
+    disconnectSocket();
     setAccessToken(null);
     setUser(null);
   }

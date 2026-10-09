@@ -5,6 +5,7 @@ import RegisterPage from "./pages/RegisterPage";
 import OrgsPage from "./pages/OrgsPage";
 import ProjectsPage from "./pages/ProjectsPage";
 import BoardPage from "./pages/BoardPage";
+import Layout from "./components/Layout";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -20,29 +21,16 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route
-            path="/"
             element={
               <ProtectedRoute>
-                <OrgsPage />
+                <Layout />
               </ProtectedRoute>
             }
-          />
-          <Route
-            path="/orgs/:orgId/projects"
-            element={
-              <ProtectedRoute>
-                <ProjectsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/orgs/:orgId/projects/:projectId/board"
-            element={
-              <ProtectedRoute>
-                <BoardPage />
-              </ProtectedRoute>
-            }
-          />
+          >
+            <Route path="/" element={<OrgsPage />} />
+            <Route path="/orgs/:orgId/projects" element={<ProjectsPage />} />
+            <Route path="/orgs/:orgId/projects/:projectId/board" element={<BoardPage />} />
+          </Route>
         </Routes>
       </AuthProvider>
     </BrowserRouter>
