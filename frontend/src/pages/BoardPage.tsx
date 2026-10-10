@@ -22,34 +22,44 @@ export default function BoardPage() {
   }
 
   useEffect(() => {
-    if (!orgId || !projectId) {
-      setError("Organization or project is missing.");
-      setLoading(false);
-      return;
-    }
-    let active = true;
-    setTickets([]);
-    setLoading(true);
-    setError("");
-    ticketsApi.listTickets(orgId, projectId)
-      .then((data) => {
-        if (active) setTickets((current) => mergeTickets(current, data));
-      })
-      .catch(() => {
-        if (active) setError("Could not load tickets. Please try again.");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
+  if (!orgId || !projectId) return;
+    ticketsApi
+      .listTickets(orgId, projectId)
+      .then(setTickets)
+      .catch(() => setError("Could not load this board. You may not have access to this project."))
+      .finally(() => setLoading(false));
   }, [orgId, projectId]);
 
+  async function handleCreateTicket(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const title = newTitle.trim();
+    if (!orgId || !projectId || !title || creatingTicket) return;
+
+    setCreatingTicket(true);
+    setError("");
+    try {
+      const ticket = await ticketsApi.createTicket(orgId, projectId, title);
+      setTickets((current) => mergeTickets(current, [ticket]));
+      setNewTitle("");
+    } catch {
+      setError("Could not create the ticket. Please try again.");
+    } finally {
+      setCreatingTicket(false);
+    }
+  }
+
   useEffect(() => {
-    if (!projectId) return;
+    if (!orgId || !projectId) return;
     const socket = connectSocket();
-    socket.emit("joinProject", projectId);
+
+    const join = () => socket.emit("joinProject", projectId);
+    join();
+    socket.on("connect", join);
+
+    const refetch = () => {
+      ticketsApi.listTickets(orgId, projectId).then(setTickets).catch(() => {});
+    };
+    socket.io.on("reconnect", refetch);
 
     function handleUpdated(updated: ticketsApi.Ticket) {
       setTickets((prev) => prev.map((t) => (t._id === updated._id ? updated : t)));
@@ -67,28 +77,13 @@ export default function BoardPage() {
 
     return () => {
       socket.emit("leaveProject", projectId);
+      socket.off("connect", join);
+      socket.io.off("reconnect", refetch);
       socket.off("ticket:updated", handleUpdated);
       socket.off("ticket:created", handleCreated);
       socket.off("ticket:deleted", handleDeleted);
     };
-  }, [projectId]);
-
-  async function handleCreateTicket(e: FormEvent) {
-    e.preventDefault();
-    const title = newTitle.trim();
-    if (!orgId || !projectId || !title || creatingTicket) return;
-    setCreatingTicket(true);
-    setError("");
-    try {
-      const ticket = await ticketsApi.createTicket(orgId, projectId, title);
-      setTickets((prev) => mergeTickets(prev, [ticket]));
-      setNewTitle("");
-    } catch {
-      setError("Could not create the ticket. Please try again.");
-    } finally {
-      setCreatingTicket(false);
-    }
-  }
+  }, [orgId, projectId]);
 
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;

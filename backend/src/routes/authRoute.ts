@@ -7,8 +7,6 @@ const router = Router();
 
 router.post("/register", registerLimiter, register);
 router.post("/login", loginLimiter, login);
-router.post("/register", register);
-router.post("/login", login);
 router.post("/logout", logout);
 router.post("/refresh", refresh);
 router.get("/me", verifyToken, me);
