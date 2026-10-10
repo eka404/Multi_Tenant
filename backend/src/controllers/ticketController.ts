@@ -27,7 +27,7 @@ export async function createTicket(req:OrgScopedRequest, res:Response) {
 
     if(!title) return res.status(400).json({message: "Title is required"});
     if(!(await assertProjectInOrg(projectId, req.membership!.orgId))){
-        return res.status(401).json({message: "Project not found in this organization"});
+        return res.status(404).json({message: "Project not found in this organization"});
     }
     if(priority && !(PRIORITIES as readonly string[]).includes(priority)){
         return res.status(400).json({message: `priority must be one of: ${PRIORITIES.join(", ")}`});

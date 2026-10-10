@@ -9,6 +9,17 @@ services:
       timeout: 5s
       retries: 10
 
+  mongo-test:
+    image: mongo:7
+    profiles: ["test"]
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   backend:
     build: ./backend
     ports:
