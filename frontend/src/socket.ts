@@ -8,9 +8,11 @@ let authRetries = 0;
 export function connectSocket(): Socket {
   if (socket) return socket;
 
-  socket = io(import.meta.env.VITE_SOCKET_URL, {
-    auth: (cb) => cb({ token: getAccessToken() }),
-  });
+  const url = import.meta.env.VITE_SOCKET_URL as string | undefined;
+  const options = {
+    auth: (cb: (data: object) => void) => cb({ token: getAccessToken() }),
+  };
+  socket = url ? io(url, options) : io(options);
 
   socket.on("connect", () => {
     authRetries = 0;

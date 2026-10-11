@@ -55,3 +55,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker compose build
+      - run: docker build -t issue-tracker .
+
+  deploy:
+    needs: [backend, frontend, docker]
+    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        run: curl --fail --silent --show-error -X POST "$RENDER_DEPLOY_HOOK"
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
