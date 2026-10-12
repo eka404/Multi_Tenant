@@ -23,7 +23,7 @@ function setRefreshCookie(res: Response, token: string) {
   res.cookie("refreshToken", token, {
     httpOnly: true,
     secure: env.isProd,
-    sameSite: "strict",
+    sameSite: env.isProd ? "none" : "strict",
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 }

@@ -4,10 +4,14 @@
 
 A multi-tenant issue tracker (think a small Linear or Jira) built with the MERN stack in TypeScript. Teams get private organizations, role-based permissions, and a kanban board that updates live on everyone's screen.
 
-**Live demo:** <LIVE_URL>
-The free host sleeps when idle, so the first load can take about a minute.
+**Live website:** [Open the app](https://multi-tenant-tan-seven.vercel.app)
 
-**Demo accounts** (password for both: `demo-password-123`)
+The frontend is hosted on Vercel and the API runs on Render. Render's free
+service may sleep when idle, so the first login or API request after a quiet
+period can take about a minute.
+
+**Demo accounts** (available after the production database has been seeded;
+password for both: `demo-password-123`)
 
 | Email | Role |
 |---|---|
@@ -31,17 +35,16 @@ Log in as each in two browser windows and drag a card in one to watch the other 
 
 ```mermaid
 flowchart LR
-    U[Browser: React + TypeScript] -->|REST + JWT| A
-    U <-->|WebSocket| A
-    subgraph C[Single Docker container]
-        A[Express API + Socket.io]
-        S[Built React app]
-    end
-    A --> D[(MongoDB Atlas)]
-    G[GitHub Actions] -->|deploy hook after CI passes| C
+    U[Browser] -->|React app| V[Vercel]
+    U -->|REST + JWT| R[Render: Express API]
+    U <-->|Socket.io| R
+    R --> D[(MongoDB Atlas)]
+    G[GitHub Actions] -->|deploy hook after CI passes| R
 ```
 
-In production the API, the sockets and the built React app are served from one container on one origin. The frontend and backend are still separate projects in this repo.
+The frontend and backend are deployed separately: Vercel serves the React app,
+while Render serves the API and Socket.io. The browser connects across these
+origins, so the backend's `CLIENT_ORIGIN` must match the Vercel site URL.
 
 ## Tech stack
 
@@ -63,14 +66,14 @@ In production the API, the sockets and the built React app are served from one c
 - **Optimistic drag-and-drop.** The card moves instantly and snaps back if the server rejects the change (for example, a guest trying to edit).
 - **Mass-assignment protection.** `PATCH /tickets/:id` accepts only an allow-list of fields. Without it, a client could send `orgId` and move a ticket into another tenant. Assignees must also be members of the organization.
 - **Roles as a ranking.** Roles are ordered, and each route declares the minimum rank it needs. Invites are capped below the inviter's own role, so a lead cannot create an owner.
-- **One container, one origin in production.** Serving the SPA and the API together removes CORS configuration and keeps the refresh cookie first-party. Trade-off: the frontend and API scale together.
+- **Separate frontend and backend deployments.** Vercel serves the frontend and Render runs the API and Socket.io. This requires an exact CORS origin and a cross-site refresh cookie (`SameSite=None; Secure`) in production.
 - **Tests run against a real database.** Integration tests use a real MongoDB container, so indexes, unique constraints and query filters are exercised for real.
 
 ## Testing and CI/CD
 
 - **Tests:** 25 integration tests covering authentication, tenant isolation and role permissions (Vitest + Supertest).
 - **CI** (GitHub Actions, pushes to `main`/`master` and pull requests): backend type-check, tests against a MongoDB service container, and build; frontend lint and build; Docker image builds.
-- **CD:** on a push to the default branch, after every job passes, a deploy hook triggers a new deploy. A failing check never ships.
+- **CD:** on a push to the default branch, after every CI job passes, GitHub Actions triggers a Render deploy hook. Vercel deployments are handled by the Vercel Git integration when enabled.
 
 ## Demo data
 
