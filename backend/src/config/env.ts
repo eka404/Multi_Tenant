@@ -12,4 +12,5 @@ export const env = {
   clientOrigin: process.env.CLIENT_ORIGIN ?? "http://localhost:5173",
   isProd: process.env.NODE_ENV === "production",
   trustProxy: process.env.TRUST_PROXY === "1",
+  crossSiteCookies: process.env.CROSS_SITE_COOKIES === "1",
 };

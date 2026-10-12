@@ -35,10 +35,12 @@ Log in as each in two browser windows and drag a card in one to watch the other 
 
 ```mermaid
 flowchart LR
-    U[Browser] -->|React app| V[Vercel]
-    U -->|REST + JWT| R[Render: Express API]
-    U <-->|Socket.io| R
-    R --> D[(MongoDB Atlas)]
+    U[Browser: React SPA on Vercel] -->|REST + JWT| A
+    U <-->|WebSocket| A
+    subgraph R[Render: Docker container]
+        A[Express API + Socket.io]
+    end
+    A --> D[(MongoDB Atlas)]
     G[GitHub Actions] -->|deploy hook after CI passes| R
 ```
 

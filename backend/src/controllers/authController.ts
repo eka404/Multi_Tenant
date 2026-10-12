@@ -19,13 +19,14 @@ function signRefreshToken(userId: string): string {
   return jwt.sign({ userId }, env.jwtRefreshSecret, { expiresIn: "7d" });
 }
 
+const refreshCookieBase = {
+  httpOnly: true,
+  secure: env.isProd,
+  sameSite: (env.crossSiteCookies ? "none" : "strict") as "none" | "strict",
+};
+
 function setRefreshCookie(res: Response, token: string) {
-  res.cookie("refreshToken", token, {
-    httpOnly: true,
-    secure: env.isProd,
-    sameSite: env.isProd ? "none" : "strict",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
+  res.cookie("refreshToken", token, { ...refreshCookieBase, maxAge: 7 * 24 * 60 * 60 * 1000 });
 }
 
 export async function register(req: Request, res: Response){
@@ -105,6 +106,6 @@ export async function refresh(req: Request, res: Response) {
 }
 
 export function logout(_req: Request, res: Response) {
-  res.clearCookie("refreshToken");
+  res.clearCookie("refreshToken", refreshCookieBase);
   res.json({ message: "Logged out" });
 }
