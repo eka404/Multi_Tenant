@@ -1,6 +1,6 @@
 # Issue Tracker
 
-![CI](https://github.com/eka404/Multi_Tenant/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/eka404/Multi_Tenet/actions/workflows/ci.yml/badge.svg)
 
 A multi-tenant issue tracker (think a small Linear or Jira) built with the MERN stack in TypeScript. Teams get private organizations, role-based permissions, and a kanban board that updates live on everyone's screen.
 
