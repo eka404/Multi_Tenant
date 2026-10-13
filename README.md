@@ -27,6 +27,7 @@ Log in as each in two browser windows and drag a card in one to watch the other 
 - **Organizations and roles.** Four roles (owner, lead, contributor, guest). Every query is scoped to the caller's organization, so one team can never see another's data.
 - **Projects and a kanban board.** Drag tickets between Todo, In Progress, Review and Done.
 - **Ticket search.** Search tickets with a MongoDB full-text index, ranked by relevance and scoped to the organization.
+- **Analytics dashboard for leads and owners.** View status and priority breakdowns, weekly throughput, workload per person, and average cycle time.
 - **Real-time sync.** Changes appear on every collaborator's screen without a refresh, over Socket.io.
 - **Comments, @mentions and notifications.** Mentioning a teammate notifies them live; the bell shows an unread count.
 - **Secure sessions.** Short-lived access tokens, an httpOnly refresh cookie, and silent token refresh.
@@ -69,6 +70,7 @@ origins, so the backend's `CLIENT_ORIGIN` must match the Vercel site URL.
 - **Optimistic drag-and-drop.** The card moves instantly and snaps back if the server rejects the change (for example, a guest trying to edit).
 - **Mass-assignment protection.** `PATCH /tickets/:id` accepts only an allow-list of fields. Without it, a client could send `orgId` and move a ticket into another tenant. Assignees must also be members of the organization.
 - **Search index and relevance.** Search uses a compound text index with `orgId` as the prefix, so queries are tenant-scoped and index-backed. Title matches are weighted 5x over description matches. Trade-off: `$text` matches whole stemmed words only.
+- **Analytics aggregation.** Analytics use a single `$facet` aggregation, so MongoDB scans the organization's tickets once and returns every chart's data together. The match on `orgId` uses the existing compound index. A `completedAt` field is set when a ticket enters Done, which makes cycle time possible. Trade-off: this records only the latest completion, not the full status history, so reopened tickets lose their earlier completion time.
 - **Roles as a ranking.** Roles are ordered, and each route declares the minimum rank it needs. Invites are capped below the inviter's own role, so a lead cannot create an owner.
 - **Separate frontend and backend deployments.** Vercel serves the frontend and Render runs the API and Socket.io. This requires an exact CORS origin and a cross-site refresh cookie (`SameSite=None; Secure`) in production.
 - **Tests run against a real database.** Integration tests use a real MongoDB container, so indexes, unique constraints and query filters are exercised for real.
@@ -136,11 +138,12 @@ Limitations I know about:
 - Invites only work for people who already have an account, and there is no email verification or password reset.
 - Socket events are not rate limited.
 - Search does not match partial words or typos.
+- Analytics are computed on every request, with no caching yet.
 - The free host sleeps when idle, so the first request after a quiet period is slow.
 
 Planned next:
 
 - File attachments on tickets
 - Redis for caching and distributed rate limiting
-- Admin dashboard and analytics (velocity, cycle time)
+- Admin dashboard
 - Internationalization

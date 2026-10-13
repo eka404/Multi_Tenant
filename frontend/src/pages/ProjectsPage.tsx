@@ -35,7 +35,10 @@ export default function ProjectsPage() {
   return (
     <div>
       <Link to="/" className="text-sm text-slate-400 hover:text-slate-200">← Organizations</Link>
-      <h1 className="mt-2 text-2xl font-semibold">Projects</h1>
+      <div className="mt-2 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Projects</h1>
+        <Link to={`/orgs/${orgId}/analytics`} className="btn-ghost">Analytics</Link>
+      </div>
 
       <form onSubmit={handleCreateProject} className="mt-6 flex max-w-md gap-2">
         <input className="input" placeholder="New project name" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} />

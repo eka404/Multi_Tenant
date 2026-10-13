@@ -6,6 +6,7 @@ import OrgsPage from "./pages/OrgsPage";
 import ProjectsPage from "./pages/ProjectsPage";
 import BoardPage from "./pages/BoardPage";
 import Layout from "./components/Layout";
+import AnalyticsPage from "./pages/AnalyticsPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -30,6 +31,7 @@ export default function App() {
             <Route path="/" element={<OrgsPage />} />
             <Route path="/orgs/:orgId/projects" element={<ProjectsPage />} />
             <Route path="/orgs/:orgId/projects/:projectId/board" element={<BoardPage />} />
+            <Route path="/orgs/:orgId/analytics" element={<AnalyticsPage />} />
           </Route>
         </Routes>
       </AuthProvider>

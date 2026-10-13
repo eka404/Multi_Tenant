@@ -15,7 +15,8 @@ const ticketSchema = new Schema(
         status:{type:String, enum:STATUSES, default:"todo"},
         priority:{type:String, enum:PRIORITIES, default:"medium"},
         assigneeId:{type:Schema.Types.ObjectId, ref:"User", default:null},
-        labels:{type:[String], default:[]}
+        labels:{type:[String], default:[]},
+        completedAt: { type: Date, default: null },
     },
     {timestamps:true}
 )

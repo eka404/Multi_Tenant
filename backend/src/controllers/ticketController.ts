@@ -108,6 +108,13 @@ export async function updateTicket(req: OrgScopedRequest, res: Response) {
 
   if (Object.keys(updates).length === 0) return res.status(400).json({ message: "No valid fields to update" });
 
+  if (typeof updates.status === "string") {
+    const current = await Ticket.findOne({ _id: ticketId, orgId }).select("status");
+    if (!current) return res.status(404).json({ message: "Ticket not found" });
+    if (updates.status === "done" && current.status !== "done") updates.completedAt = new Date();
+    if (updates.status !== "done") updates.completedAt = null;
+  }
+  
   const ticket = await Ticket.findOneAndUpdate({ _id: ticketId, orgId }, { $set: updates }, { new: true });
   if (!ticket) return res.status(404).json({ message: "Ticket not found" });
 

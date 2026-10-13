@@ -13,6 +13,7 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import analyticsRoutes from "./routes/analyticsRoutes.js";
 
 export const app = express();
 if (env.trustProxy) app.set("trust proxy", 1);
@@ -33,6 +34,7 @@ app.use("/api/orgs", orgRoutes);
 app.use("/api/orgs", projectRoutes);
 app.use("/api/orgs", ticketRoutes);
 app.use("/api/orgs", commentRoutes);
+app.use("/api/orgs", analyticsRoutes);
 app.use("/api/notifications", notificationRoutes);
 const publicDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "../public");
 if (fs.existsSync(publicDir)) {

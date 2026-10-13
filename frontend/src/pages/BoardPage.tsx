@@ -15,7 +15,18 @@ export default function BoardPage() {
   const [creatingTicket, setCreatingTicket] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
-  const [searchResult, setSearchResult] = useState<{ q: string; ids: Set<string> } | null>(null);
+  const [searchResult, setSearchResult] = useState<{
+    q: string;
+    orgId: string;
+    projectId: string;
+    ids: Set<string>;
+  } | null>(null);
+  const [searchError, setSearchError] = useState<{
+    q: string;
+    orgId: string;
+    projectId: string;
+    message: string;
+  } | null>(null);
 
   function mergeTickets(current: ticketsApi.Ticket[], incoming: ticketsApi.Ticket[]) {
     const byId = new Map(current.map((ticket) => [ticket._id, ticket]));
@@ -96,10 +107,15 @@ export default function BoardPage() {
       ticketsApi
         .searchTickets(orgId, q, projectId)
         .then((found) => {
-          if (!cancelled) setSearchResult({ q, ids: new Set(found.map((t) => t._id)) });
+          if (!cancelled) {
+            setSearchResult({ q, orgId, projectId, ids: new Set(found.map((t) => t._id)) });
+            setSearchError(null);
+          }
         })
         .catch(() => {
-          if (!cancelled) setSearchResult({ q, ids: new Set() });
+          if (!cancelled) {
+            setSearchError({ q, orgId, projectId, message: "Search failed. Please try again." });
+          }
         });
     }, 300);
 
@@ -136,8 +152,25 @@ export default function BoardPage() {
   );
 
   const trimmed = query.trim();
-  const activeResult = trimmed.length >= 2 && searchResult?.q === trimmed ? searchResult : null;
-  const visibleTickets = activeResult ? tickets.filter((t) => activeResult.ids.has(t._id)) : tickets;
+  const activeResult =
+    trimmed.length >= 2 &&
+    searchResult?.q === trimmed &&
+    searchResult.orgId === orgId &&
+    searchResult.projectId === projectId
+      ? searchResult
+      : null;
+  const activeSearchError =
+    searchError?.q === trimmed &&
+    searchError.orgId === orgId &&
+    searchError.projectId === projectId
+      ? searchError.message
+      : null;
+  const isSearching = trimmed.length >= 2 && !activeResult && !activeSearchError;
+  const visibleTickets = trimmed.length === 0
+    ? tickets
+    : activeResult
+      ? tickets.filter((t) => activeResult.ids.has(t._id))
+      : [];
 
   if (!orgId || !projectId) return <p role="alert">Organization or project is missing.</p>;
   if (loading) return <p className="text-slate-400">Loading board...</p>;
@@ -153,8 +186,13 @@ export default function BoardPage() {
             type="search"
             className="input sm:w-56"
             placeholder="Search tickets..."
+            maxLength={100}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setSearchResult(null);
+              setSearchError(null);
+            }}
           />
           <form onSubmit={handleCreateTicket} className="flex flex-1 gap-2 sm:flex-none">
             <input
@@ -168,7 +206,16 @@ export default function BoardPage() {
         </div>
       </div>
 
-      {activeResult && (
+      {trimmed.length === 1 && (
+        <p className="mb-3 text-sm text-slate-400">Enter at least 2 characters to search.</p>
+      )}
+      {isSearching && (
+        <p className="mb-3 text-sm text-slate-400">Searching tickets...</p>
+      )}
+      {activeSearchError && (
+        <p role="alert" className="mb-3 text-sm text-red-400">{activeSearchError}</p>
+      )}
+      {activeResult && !activeSearchError && (
         <p className="mb-3 text-sm text-slate-400">
           {activeResult.ids.size === 0
             ? `No tickets match "${trimmed}"`
