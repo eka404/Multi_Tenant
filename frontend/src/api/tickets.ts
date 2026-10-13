@@ -33,3 +33,10 @@ export async function updateTicketStatus(orgId: string, ticketId: string, status
   });
   return data.ticket;
 }
+
+export async function searchTickets(orgId: string, q: string, projectId?: string) {
+  const { data } = await api.get<{ tickets: Ticket[] }>(`/orgs/${orgId}/search/tickets`, {
+    params: { q, projectId },
+  });
+  return data.tickets;
+}

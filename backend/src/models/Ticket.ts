@@ -20,7 +20,10 @@ const ticketSchema = new Schema(
     {timestamps:true}
 )
 
-ticketSchema.index({orgId:1, projectId:1, status:1});
+ticketSchema.index(
+  { orgId: 1, title: "text", description: "text" },
+  { name: "org_ticket_text", weights: { title: 5, description: 1 } }
+);
 
 export type ITicket = InferSchemaType<typeof ticketSchema>;
 export const Ticket = model("Ticket", ticketSchema);

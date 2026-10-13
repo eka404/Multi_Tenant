@@ -26,3 +26,11 @@ export const registerLimiter = rateLimit({
   legacyHeaders: false,
   message: tooMany,
 });
+
+export const searchLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: tooMany,
+});

@@ -14,6 +14,8 @@ export default function BoardPage() {
   const [loading, setLoading] = useState(true);
   const [creatingTicket, setCreatingTicket] = useState(false);
   const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [searchResult, setSearchResult] = useState<{ q: string; ids: Set<string> } | null>(null);
 
   function mergeTickets(current: ticketsApi.Ticket[], incoming: ticketsApi.Ticket[]) {
     const byId = new Map(current.map((ticket) => [ticket._id, ticket]));
@@ -85,6 +87,28 @@ export default function BoardPage() {
     };
   }, [orgId, projectId]);
 
+  useEffect(() => {
+    const q = query.trim();
+    if (!orgId || !projectId || q.length < 2) return;
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      ticketsApi
+        .searchTickets(orgId, q, projectId)
+        .then((found) => {
+          if (!cancelled) setSearchResult({ q, ids: new Set(found.map((t) => t._id)) });
+        })
+        .catch(() => {
+          if (!cancelled) setSearchResult({ q, ids: new Set() });
+        });
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query, orgId, projectId]);
+
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || !orgId) return;
@@ -111,6 +135,10 @@ export default function BoardPage() {
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
   );
 
+  const trimmed = query.trim();
+  const activeResult = trimmed.length >= 2 && searchResult?.q === trimmed ? searchResult : null;
+  const visibleTickets = activeResult ? tickets.filter((t) => activeResult.ids.has(t._id)) : tickets;
+
   if (!orgId || !projectId) return <p role="alert">Organization or project is missing.</p>;
   if (loading) return <p className="text-slate-400">Loading board...</p>;
 
@@ -120,22 +148,33 @@ export default function BoardPage() {
         <Link to={`/orgs/${orgId}/projects`} className="text-sm text-slate-400 hover:text-slate-200">
           ← Projects
         </Link>
-        <form onSubmit={handleCreateTicket} className="flex w-full gap-2 sm:w-auto">
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
           <input
-            className="input sm:w-72"
-            placeholder="New ticket title"
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
+            type="search"
+            className="input sm:w-56"
+            placeholder="Search tickets..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
           />
-          <button
-            type="submit"
-            className="btn-primary shrink-0"
-            disabled={creatingTicket || !newTitle.trim()}
-          >
-            {creatingTicket ? "Adding..." : "Add ticket"}
-          </button>
-        </form>
+          <form onSubmit={handleCreateTicket} className="flex flex-1 gap-2 sm:flex-none">
+            <input
+              className="input sm:w-56"
+              placeholder="New ticket title"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+            />
+            <button type="submit" className="btn-primary shrink-0">Add ticket</button>
+          </form>
+        </div>
       </div>
+
+      {activeResult && (
+        <p className="mb-3 text-sm text-slate-400">
+          {activeResult.ids.size === 0
+            ? `No tickets match "${trimmed}"`
+            : `${activeResult.ids.size} ticket${activeResult.ids.size === 1 ? "" : "s"} match "${trimmed}"`}
+        </p>
+      )}
       {error && <p role="alert" className="mb-4 text-red-400">{error}</p>}
 
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
@@ -144,7 +183,7 @@ export default function BoardPage() {
             <BoardColumn
               key={status}
               status={status}
-              tickets={tickets.filter((t) => t.status === status)}
+              tickets={visibleTickets.filter((t) => t.status === status)}
               orgId={orgId}
             />
           ))}
