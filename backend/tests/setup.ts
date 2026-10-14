@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { afterAll, beforeAll, beforeEach } from "vitest";
 import { app } from "../src/app.js";
 import { initSocket } from "../src/socket.js";
+import { redis } from "../src/config/redis.js";
 import type { Server } from "socket.io";
 
 const TEST_URI = process.env.TEST_MONGO_URI ?? "mongodb://127.0.0.1:27017/issue-tracker-test";
@@ -18,6 +19,12 @@ beforeAll(async () => {
     );
   }
   await Promise.all(Object.values(mongoose.connection.models).map((model) => model.init()));
+
+  if (redis) {
+    // rate-limit counters live in Redis, so clear them or repeated local runs would start returning 429s
+    const stale = await redis.keys("rl:*");
+    if (stale.length > 0) await redis.del(...stale);
+  }
 });
 
 beforeEach(async () => {
@@ -29,5 +36,6 @@ beforeEach(async () => {
 
 afterAll(async () => {
   if (io) await new Promise<void>((resolve) => io.close(() => resolve()));
+  await redis?.quit();
   await mongoose.disconnect();
 });

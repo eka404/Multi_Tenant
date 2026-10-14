@@ -11,6 +11,7 @@ export default defineConfig({
       MONGO_URI: "mongodb://127.0.0.1:27017/issue-tracker-test",
       JWT_ACCESS_SECRET: "test-access-secret",
       JWT_REFRESH_SECRET: "test-refresh-secret",
+      REDIS_URL: process.env.TEST_REDIS_URL ?? "",
     },
   },
 });

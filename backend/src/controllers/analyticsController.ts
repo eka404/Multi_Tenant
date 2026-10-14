@@ -3,6 +3,7 @@ import { Types } from "mongoose";
 import { Ticket, STATUSES, PRIORITIES } from "../models/Ticket.js";
 import { isObjectId } from "../middlewares/validateId.js";
 import type { OrgScopedRequest } from "../middlewares/requireOrgMembership.js";
+import { analyticsVersion, cached } from "../lib/cache.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -21,15 +22,9 @@ function mondayUtc(d: Date) {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - sinceMonday));
 }
 
-export async function getAnalytics(req: OrgScopedRequest, res: Response) {
-  const { projectId } = req.query;
-  if (projectId !== undefined && !isObjectId(projectId)) {
-    return res.status(400).json({ message: "Invalid projectId" });
-  }
-  const weeks = Math.min(26, Math.max(1, Number.parseInt(String(req.query.weeks ?? "8"), 10) || 8));
-
+async function computeAnalytics(orgId: string, projectId: string | undefined, weeks: number) {
   const match = {
-    orgId: new Types.ObjectId(req.membership!.orgId),
+    orgId: new Types.ObjectId(orgId),
     ...(projectId ? { projectId: new Types.ObjectId(projectId) } : {}),
   };
 
@@ -105,7 +100,7 @@ export async function getAnalytics(req: OrgScopedRequest, res: Response) {
   const done = statusCounts.get("done") ?? 0;
   const cycle = facets.cycleTime[0];
 
-  res.json({
+  return {
     totals: { tickets: total, open: total - done, done },
     byStatus,
     byPriority: PRIORITIES.map((priority) => ({ priority, count: priorityCounts.get(priority) ?? 0 })),
@@ -113,5 +108,21 @@ export async function getAnalytics(req: OrgScopedRequest, res: Response) {
     createdPerWeek: fill(facets.createdPerWeek),
     completedPerWeek: fill(facets.completedPerWeek),
     avgCycleDays: cycle ? Math.round((cycle.avgMs / DAY_MS) * 10) / 10 : null,
-  });
+  };
+}
+
+export async function getAnalytics(req: OrgScopedRequest, res: Response) {
+  const { projectId } = req.query;
+  if (projectId !== undefined && !isObjectId(projectId)) {
+    return res.status(400).json({ message: "Invalid projectId" });
+  }
+  const pid = typeof projectId === "string" ? projectId : undefined;
+  const weeks = Math.min(26, Math.max(1, Number.parseInt(String(req.query.weeks ?? "8"), 10) || 8));
+  const orgId = req.membership!.orgId;
+
+  // the version in the key changes whenever the org's tickets change, so stale entries are never read
+  const version = await analyticsVersion(orgId);
+  const key = `analytics:${orgId}:${pid ?? "all"}:${weeks}:v${version}`;
+
+  res.json(await cached(key, 60, () => computeAnalytics(orgId, pid, weeks)));
 }

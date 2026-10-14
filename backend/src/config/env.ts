@@ -13,4 +13,6 @@ export const env = {
   isProd: process.env.NODE_ENV === "production",
   trustProxy: process.env.TRUST_PROXY === "1",
   crossSiteCookies: process.env.CROSS_SITE_COOKIES === "1",
+  redisUrl: process.env.REDIS_URL?.trim() || undefined,
+  isTest: process.env.NODE_ENV === "test",
 };

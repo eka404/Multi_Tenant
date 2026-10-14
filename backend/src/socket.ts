@@ -4,7 +4,9 @@ import jwt from "jsonwebtoken";
 import { env } from "./config/env.js";
 import { Project } from "./models/Project.js";
 import { Membership } from "./models/Membership.js";
-import { isObjectId } from "./middlewares/validateId.js"; 
+import { isObjectId } from "./middlewares/validateId.js";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { redis } from "./config/redis.js";
 
 interface AuthedSocket extends Socket {
   userId?: string;
@@ -13,6 +15,8 @@ let io: Server | undefined;
 
 export function initSocket(httpServer: HTTPServer): Server {
   io = new Server(httpServer, { cors: { origin: env.clientOrigin, credentials: true } });
+  if (redis && !env.isTest) io.adapter(createAdapter(redis, redis.duplicate()));
+  
   io.use((socket: AuthedSocket, next) => {
     const token = socket.handshake.auth?.token as string | undefined;
     if (!token) return next(new Error("No token provided"));
