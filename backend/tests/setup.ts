@@ -19,12 +19,6 @@ beforeAll(async () => {
     );
   }
   await Promise.all(Object.values(mongoose.connection.models).map((model) => model.init()));
-
-  if (redis) {
-    // rate-limit counters live in Redis, so clear them or repeated local runs would start returning 429s
-    const stale = await redis.keys("rl:*");
-    if (stale.length > 0) await redis.del(...stale);
-  }
 });
 
 beforeEach(async () => {

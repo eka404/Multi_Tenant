@@ -29,7 +29,7 @@ Log in as each in two browser windows and drag a card in one to watch the other 
 - **Ticket search.** Search tickets with a MongoDB full-text index, ranked by relevance and scoped to the organization.
 - **Analytics dashboard for leads and owners.** View status and priority breakdowns, weekly throughput, workload per person, and average cycle time.
 - **Real-time sync.** Changes appear on every collaborator's screen without a refresh, over Socket.io.
-- **Shared Redis services.** Redis-backed analytics caching, shared rate limiting and a Socket.io adapter let the app run on several servers. Redis is optional: without it the app falls back to in-memory behavior.
+- **Redis integrations.** Redis-backed analytics caching and a Socket.io adapter support multiple servers. Redis is optional; rate limiting uses the in-memory store.
 - **Comments, @mentions and notifications.** Mentioning a teammate notifies them live; the bell shows an unread count.
 - **Secure sessions.** Short-lived access tokens, an httpOnly refresh cookie, and silent token refresh.
 - **Production hardening.** Rate limiting, input allow-lists, security headers, and an automated test suite.
@@ -74,7 +74,7 @@ origins, so the backend's `CLIENT_ORIGIN` must match the Vercel site URL.
 - **Mass-assignment protection.** `PATCH /tickets/:id` accepts only an allow-list of fields. Without it, a client could send `orgId` and move a ticket into another tenant. Assignees must also be members of the organization.
 - **Search index and relevance.** Search uses a compound text index with `orgId` as the prefix, so queries are tenant-scoped and index-backed. Title matches are weighted 5x over description matches. Trade-off: `$text` matches whole stemmed words only.
 - **Analytics aggregation.** Analytics use a single `$facet` aggregation, so MongoDB scans the organization's tickets once and returns every chart's data together. The match on `orgId` uses the existing compound index. A `completedAt` field is set when a ticket enters Done, which makes cycle time possible. Trade-off: this records only the latest completion, not the full status history, so reopened tickets lose their earlier completion time.
-- **Redis cache and shared rate limits.** Analytics use cache-aside for 60 seconds. Entries are invalidated by bumping a per-organization version number included in the key, avoiding a Redis key scan; the TTL is the safety net. Rate limiting and caching fail open: if Redis is unavailable, requests still succeed.
+- **Redis cache and rate limits.** Analytics use cache-aside for 60 seconds. Entries are invalidated by bumping a per-organization version number included in the key, avoiding a Redis key scan; the TTL is the safety net. If Redis is unavailable, analytics fall back to querying the database. Rate limits use in-memory counters, so they are per server instance and reset when that server restarts.
 - **Socket.io scaling.** A Redis adapter broadcasts socket events across backend servers. Multiple servers using Socket.io's long-polling transport also need sticky sessions at the load balancer.
 - **Roles as a ranking.** Roles are ordered, and each route declares the minimum rank it needs. Invites are capped below the inviter's own role, so a lead cannot create an owner.
 - **Separate frontend and backend deployments.** Vercel serves the frontend and Render runs the API and Socket.io. This requires an exact CORS origin and a cross-site refresh cookie (`SameSite=None; Secure`) in production.
@@ -147,7 +147,7 @@ cd backend && TEST_REDIS_URL=redis://127.0.0.1:6379 npm test
 
 Limitations I know about:
 
-- The free Redis instance is not persistent, so a restart clears the cache and rate-limit counters. Running multiple servers with Socket.io's long-polling transport also needs sticky sessions at the load balancer.
+- Rate-limit counters are in memory, so they are per server instance and reset when a server restarts. The free Redis instance is not persistent, so a restart clears the analytics cache. Running multiple servers with Socket.io's long-polling transport also needs sticky sessions at the load balancer.
 - Invites only work for people who already have an account, and there is no email verification or password reset.
 - Socket events are not rate limited.
 - Search does not match partial words or typos.
