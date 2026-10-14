@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as notificationsApi from "../api/notifications";
 import { connectSocket } from "../socket";
@@ -10,18 +10,36 @@ export default function NotificationBell() {
 
   const unread = items.filter((n) => !n.read).length;
 
-  async function refresh() {
-    setItems(await notificationsApi.listNotifications());
-  }
+  const refresh = useCallback(async () => {
+    try {
+      const notifications = await notificationsApi.listNotifications();
+      setItems(notifications);
+    } catch (error) {
+      console.error("Failed to load notifications:", error);
+    }
+  }, []);
 
   useEffect(() => {
-    refresh();
+    let cancelled = false;
+
+    const loadInitial = async () => {
+      try {
+        const notifications = await notificationsApi.listNotifications();
+        if (!cancelled) setItems(notifications);
+      } catch (error) {
+        if (!cancelled) console.error("Failed to load notifications:", error);
+      }
+    };
+
     const socket = connectSocket();
+    void loadInitial();
     socket.on("notification:new", refresh);
+
     return () => {
+      cancelled = true;
       socket.off("notification:new", refresh);
     };
-  }, []);
+  }, [refresh]);
 
   async function handleClick(n: notificationsApi.AppNotification) {
     if (!n.read) {
