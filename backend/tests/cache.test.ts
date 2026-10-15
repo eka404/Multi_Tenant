@@ -3,9 +3,10 @@ import { describe, expect, it } from "vitest";
 import { app } from "../src/app.js";
 import { Ticket } from "../src/models/Ticket.js";
 import { asUser, createOrg, createProject } from "./factories.js";
+import { redis } from "../src/config/redis.js";
 
 // these need a real Redis: run with TEST_REDIS_URL=redis://127.0.0.1:6379
-describe.skipIf(!process.env.TEST_REDIS_URL)("analytics cache", () => {
+describe.skipIf(!redis)("analytics cache", () => {
   async function setup() {
     const { org, owner } = await createOrg("Owner");
     const projectA = await createProject(org._id, owner.user._id);

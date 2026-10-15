@@ -15,7 +15,11 @@ let io: Server | undefined;
 
 export function initSocket(httpServer: HTTPServer): Server {
   io = new Server(httpServer, { cors: { origin: env.clientOrigin, credentials: true } });
-  if (redis && !env.isTest) io.adapter(createAdapter(redis, redis.duplicate()));
+  if (redis && !env.isTest) {
+    const sub = redis.duplicate();
+    sub.on("error", (err) => console.error("Redis (socket adapter) error:", err.message));
+    io.adapter(createAdapter(redis, sub));
+  }
   
   io.use((socket: AuthedSocket, next) => {
     const token = socket.handshake.auth?.token as string | undefined;
