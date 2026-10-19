@@ -1,5 +1,7 @@
 import { redis } from "../config/redis.js";
 
+const inflight = new Map<string, Promise<unknown>>();
+
 export async function cached<T>(key: string, ttlSeconds: number, load: () => Promise<T>): Promise<T> {
   if (redis) {
     try {
@@ -10,14 +12,22 @@ export async function cached<T>(key: string, ttlSeconds: number, load: () => Pro
     }
   }
 
-  const value = await load();
+  const running = inflight.get(key) as Promise<T> | undefined;
+  if (running) return running;
 
-  if (redis) {
-    redis
-      .set(key, JSON.stringify(value), "EX", ttlSeconds)
-      .catch((err) => console.warn("cache write failed:", (err as Error).message));
-  }
-  return value;
+  const promise = load()
+    .then((value) => {
+      if (redis) {
+        redis
+          .set(key, JSON.stringify(value), "EX", ttlSeconds)
+          .catch((err) => console.warn("cache write failed:", (err as Error).message));
+      }
+      return value;
+    })
+    .finally(() => inflight.delete(key));
+
+  inflight.set(key, promise);
+  return promise;
 }
 
 const versionKey = (orgId: string) => `analytics:ver:${orgId}`;

@@ -74,7 +74,7 @@ origins, so the backend's `CLIENT_ORIGIN` must match the Vercel site URL.
 - **Mass-assignment protection.** `PATCH /tickets/:id` accepts only an allow-list of fields. Without it, a client could send `orgId` and move a ticket into another tenant. Assignees must also be members of the organization.
 - **Search index and relevance.** Search uses a compound text index with `orgId` as the prefix, so queries are tenant-scoped and index-backed. Title matches are weighted 5x over description matches. Trade-off: `$text` matches whole stemmed words only.
 - **Analytics aggregation.** Analytics use a single `$facet` aggregation, so MongoDB scans the organization's tickets once and returns every chart's data together. The match on `orgId` uses the existing compound index. A `completedAt` field is set when a ticket enters Done, which makes cycle time possible. Trade-off: this records only the latest completion, not the full status history, so reopened tickets lose their earlier completion time.
-- **Redis cache and rate limits.** Analytics use cache-aside for 60 seconds. Entries are invalidated by bumping a per-organization version number included in the key, avoiding a Redis key scan; the TTL is the safety net. If Redis is unavailable, analytics fall back to querying the database. Rate limits use in-memory counters, so they are per server instance and reset when that server restarts.
+- **Redis cache and rate limits.** Analytics use cache-aside for 60 seconds. Entries are invalidated by bumping a per-organization version number included in the key, avoiding a Redis key scan; the TTL is the safety net. Concurrent cache misses for the same key share one database computation. If Redis is unavailable, analytics fall back to querying the database. Rate limits use in-memory counters, so they are per server instance and reset when that server restarts.
 - **Socket.io scaling.** A Redis adapter broadcasts socket events across backend servers. Multiple servers using Socket.io's long-polling transport also need sticky sessions at the load balancer.
 - **Roles as a ranking.** Roles are ordered, and each route declares the minimum rank it needs. Invites are capped below the inviter's own role, so a lead cannot create an owner.
 - **Separate frontend and backend deployments.** Vercel serves the frontend and Render runs the API and Socket.io. This requires an exact CORS origin and a cross-site refresh cookie (`SameSite=None; Secure`) in production.
@@ -85,6 +85,30 @@ origins, so the backend's `CLIENT_ORIGIN` must match the Vercel site URL.
 - **Tests:** Integration tests cover authentication, tenant isolation, role permissions and Redis-backed analytics caching (Vitest + Supertest).
 - **CI** (GitHub Actions, pushes to `main`/`master` and pull requests): backend type-check, tests against MongoDB and Redis service containers, and build; frontend lint and build; Docker image builds.
 - **CD:** on a push to the default branch, after every CI job passes, GitHub Actions triggers a Render deploy hook. Vercel deployments are handled by the Vercel Git integration when enabled.
+
+## Performance
+
+The k6 benchmark exercises analytics for an organization with 50,000 tickets,
+20 concurrent readers, and one ticket update per second for 30 seconds. The
+load generator, API, MongoDB and Redis share the same machine, so results are
+useful for comparing configurations on that machine, not estimating production
+capacity.
+
+| Setup | Average latency | p95 latency | Throughput |
+|---|---:|---:|---:|
+| No Redis cache | Not measured | Not measured | Not measured |
+| Redis cache with version-key invalidation | Not measured | Not measured | Not measured |
+| Redis cache with request coalescing | Not measured | Not measured | Not measured |
+
+To generate isolated benchmark data, configure `MONGO_URI` to a local database
+whose name contains `bench` and run `cd backend && npm run load-data`. The
+loader refuses to write to any database whose name does not contain `bench` or
+`test`. It prints a ready-to-run k6 Docker command with the generated
+organization and ticket IDs. For each configuration, run that command twice
+and record the second run's analytics average and p95 latency and `http_reqs`
+throughput. `DISABLE_RATE_LIMITS=1` disables rate limits only outside
+production. No results are reported above because k6 could not be run in the
+environment used to prepare this benchmark.
 
 ## Demo data
 

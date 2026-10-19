@@ -15,4 +15,5 @@ export const env = {
   crossSiteCookies: process.env.CROSS_SITE_COOKIES === "1",
   redisUrl: process.env.REDIS_URL?.trim() || undefined,
   isTest: process.env.NODE_ENV === "test",
+  disableRateLimits: process.env.DISABLE_RATE_LIMITS === "1" && process.env.NODE_ENV !== "production",
 };

@@ -4,8 +4,8 @@ import { app } from "../src/app.js";
 import { Ticket } from "../src/models/Ticket.js";
 import { asUser, createOrg, createProject } from "./factories.js";
 import { redis } from "../src/config/redis.js";
+import { cached } from "../src/lib/cache.js";
 
-// these need a real Redis: run with TEST_REDIS_URL=redis://127.0.0.1:6379
 describe.skipIf(!redis)("analytics cache", () => {
   async function setup() {
     const { org, owner } = await createOrg("Owner");
@@ -24,11 +24,9 @@ describe.skipIf(!redis)("analytics cache", () => {
 
     expect((await get()).body.totals.tickets).toBe(1);
 
-    // a write that bypasses the API can't invalidate the cache, so the old numbers are still served
     await make(projectA._id, "second");
     expect((await get()).body.totals.tickets).toBe(1);
 
-    // a write through the API bumps the organization's cache version, so the next read is fresh
     await request(app)
       .patch(`/api/orgs/${org._id}/tickets/${first._id}`)
       .set(asUser(owner))
@@ -43,5 +41,22 @@ describe.skipIf(!redis)("analytics cache", () => {
 
     expect((await get()).body.totals.tickets).toBe(2);
     expect((await get({ projectId: projectA._id.toString() })).body.totals.tickets).toBe(1);
+  });
+});
+
+describe("request coalescing", () => {
+  it("shares one computation between concurrent callers", async () => {
+    let calls = 0;
+    const load = async () => {
+      calls++;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      return "value";
+    };
+    const key = `test:coalesce:${Math.random()}`;
+
+    const results = await Promise.all([cached(key, 60, load), cached(key, 60, load), cached(key, 60, load)]);
+
+    expect(results).toEqual(["value", "value", "value"]);
+    expect(calls).toBe(1);
   });
 });
