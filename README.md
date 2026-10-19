@@ -25,6 +25,7 @@ Log in as each in two browser windows and drag a card in one to watch the other 
 ## Features
 
 - **Organizations and roles.** Four roles (owner, lead, contributor, guest). Every query is scoped to the caller's organization, so one team can never see another's data.
+- **Member management.** Invite, change roles and remove or leave, with escalation rules (nobody can grant or modify a role at or above their own).
 - **Projects and a kanban board.** Drag tickets between Todo, In Progress, Review and Done.
 - **Ticket search.** Search tickets with a MongoDB full-text index, ranked by relevance and scoped to the organization.
 - **Analytics dashboard for leads and owners.** View status and priority breakdowns, weekly throughput, workload per person, and average cycle time.
@@ -70,6 +71,7 @@ origins, so the backend's `CLIENT_ORIGIN` must match the Vercel site URL.
 - **Tenant isolation enforced in the query, not only the route.** Updates and deletes filter on both the ticket id and the caller's `orgId`. Knowing another organization's ticket id is not enough to touch it, and automated tests cover this.
 - **Tokens.** The access token lives in memory (not `localStorage`) and expires in 15 minutes. The refresh token is an httpOnly cookie. An Axios interceptor refreshes on a 401 and retries the request once, and concurrent failures share a single refresh call. Trade-off: a page reload needs one extra round trip to restore the session.
 - **Real-time rooms with authorization.** Each project is a Socket.io room. Joining checks that the user belongs to the project's organization, the same rule the REST routes use. The client re-joins and reloads the board after any reconnect, because rooms do not survive a dropped connection.
+- **Member removal and role changes.** Roles live in the database, not in the token, so role changes and removals apply on the next request. Because socket rooms outlive membership, removing a member also evicts them from the organization's project rooms. Members' tickets are unassigned on removal rather than deleted.
 - **Optimistic drag-and-drop.** The card moves instantly and snaps back if the server rejects the change (for example, a guest trying to edit).
 - **Mass-assignment protection.** `PATCH /tickets/:id` accepts only an allow-list of fields. Without it, a client could send `orgId` and move a ticket into another tenant. Assignees must also be members of the organization.
 - **Search index and relevance.** Search uses a compound text index with `orgId` as the prefix, so queries are tenant-scoped and index-backed. Title matches are weighted 5x over description matches. Trade-off: `$text` matches whole stemmed words only.
@@ -172,7 +174,8 @@ cd backend && TEST_REDIS_URL=redis://127.0.0.1:6379 npm test
 Limitations I know about:
 
 - Rate-limit counters are in memory, so they are per server instance and reset when a server restarts. The free Redis instance is not persistent, so a restart clears the analytics cache. Running multiple servers with Socket.io's long-polling transport also needs sticky sessions at the load balancer.
-- Invites only work for people who already have an account, and there is no email verification or password reset.
+- Only existing users can be added (no email invitations), and ownership can't be transferred.
+- There is no email verification or password reset.
 - Socket events are not rate limited.
 - Search does not match partial words or typos.
 - The free host sleeps when idle, so the first request after a quiet period is slow.

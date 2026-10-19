@@ -37,7 +37,10 @@ export default function ProjectsPage() {
       <Link to="/" className="text-sm text-slate-400 hover:text-slate-200">← Organizations</Link>
       <div className="mt-2 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Projects</h1>
-        <Link to={`/orgs/${orgId}/analytics`} className="btn-ghost">Analytics</Link>
+        <div className="flex gap-1">
+          <Link to={`/orgs/${orgId}/members`} className="btn-ghost">Members</Link>
+          <Link to={`/orgs/${orgId}/analytics`} className="btn-ghost">Analytics</Link>
+        </div>
       </div>
 
       <form onSubmit={handleCreateProject} className="mt-6 flex max-w-md gap-2">

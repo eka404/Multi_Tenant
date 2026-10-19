@@ -6,6 +6,10 @@ import type { AuthedRequest } from "../middlewares/auth.js";
 import type { OrgScopedRequest } from "../middlewares/requireOrgMembership.js";
 import { roleRank } from "../middlewares/requireOrgMembership.js";
 import { ROLES, type Role } from "../models/Membership.js";
+import { Ticket } from "../models/Ticket.js";
+import { Project } from "../models/Project.js";
+import { invalidateAnalytics } from "../lib/cache.js";
+import { getIO } from "../socket.js";
 
 function isRole(value: string): value is Role {
   return (ROLES as readonly string[]).includes(value);
@@ -51,4 +55,67 @@ export async function inviteMember(req: OrgScopedRequest, res: Response){
 export async function listMembers(req:OrgScopedRequest, res:Response) {
     const members = await Membership.find({orgId:req.membership!.orgId}).populate("userId", "name email");
     res.json({members});
+}
+
+export async function changeMemberRole(req: OrgScopedRequest, res: Response) {
+  const { memberId } = req.params;
+  const { role } = (req.body ?? {}) as { role?: string };
+  const orgId = req.membership!.orgId;
+  const actorRank = roleRank[req.membership!.role];
+
+  if (typeof role !== "string" || !isRole(role)) {
+    return res.status(400).json({ message: `role must be one of: ${ROLES.join(", ")}` });
+  }
+
+  const target = await Membership.findOne({ _id: memberId, orgId });
+  if (!target) return res.status(404).json({ message: "Member not found" });
+
+  if (target.userId.toString() === req.userId) {
+    return res.status(403).json({ message: "You can't change your own role" });
+  }
+  if (roleRank[target.role as Role] >= actorRank) {
+    return res.status(403).json({ message: "You can only change the role of people ranked below you" });
+  }
+  if (roleRank[role] >= actorRank) {
+    return res.status(403).json({ message: "You can only grant roles below your own" });
+  }
+
+  target.role = role;
+  await target.save();
+  res.json({ membership: target });
+}
+
+export async function removeMember(req: OrgScopedRequest, res: Response) {
+  const { memberId } = req.params;
+  const orgId = req.membership!.orgId;
+
+  const target = await Membership.findOne({ _id: memberId, orgId });
+  if (!target) return res.status(404).json({ message: "Member not found" });
+
+  const isSelf = target.userId.toString() === req.userId;
+  const targetRole = target.role as Role;
+
+  if (targetRole === "owner") {
+    return res.status(403).json({ message: "The owner can't be removed or leave" });
+  }
+  if (!isSelf) {
+    if (roleRank[req.membership!.role] < roleRank.lead) {
+      return res.status(403).json({ message: "Only leads and owners can remove members" });
+    }
+    if (roleRank[targetRole] >= roleRank[req.membership!.role]) {
+      return res.status(403).json({ message: "You can only remove people ranked below you" });
+    }
+  }
+
+  await target.deleteOne();
+
+  await Ticket.updateMany({ orgId, assigneeId: target.userId }, { $set: { assigneeId: null } });
+  await invalidateAnalytics(orgId);
+
+  const projects = await Project.find({ orgId }).select("_id");
+  getIO()
+    .in(`user:${target.userId}`)
+    .socketsLeave(projects.map((p) => `project:${p._id}`));
+
+  res.json({ message: "Member removed" });
 }
