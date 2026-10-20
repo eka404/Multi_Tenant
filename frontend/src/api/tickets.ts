@@ -10,7 +10,12 @@ export interface Ticket {
   status: Status;
   priority: Priority;
   projectId: string;
+  assigneeId: string | null;
+  labels: string[];
+  createdAt: string;
 }
+
+export type TicketPatch = Partial<Pick<Ticket, "title" | "description" | "status" | "priority" | "assigneeId" | "labels">>;
 
 export async function listTickets(orgId: string, projectId: string) {
   const { data } = await api.get<{ tickets: Ticket[] }>(
@@ -27,6 +32,11 @@ export async function createTicket(orgId: string, projectId: string, title: stri
   return data.ticket;
 }
 
+export async function updateTicket(orgId: string, ticketId: string, patch: TicketPatch) {
+  const { data } = await api.patch<{ ticket: Ticket }>(`/orgs/${orgId}/tickets/${ticketId}`, patch);
+  return data.ticket;
+}
+
 export async function updateTicketStatus(orgId: string, ticketId: string, status: Status) {
   const { data } = await api.patch<{ ticket: Ticket }>(`/orgs/${orgId}/tickets/${ticketId}`, {
     status,
@@ -39,4 +49,8 @@ export async function searchTickets(orgId: string, q: string, projectId?: string
     params: { q, projectId },
   });
   return data.tickets;
+}
+
+export async function deleteTicket(orgId: string, ticketId: string) {
+  await api.delete(`/orgs/${orgId}/tickets/${ticketId}`);
 }

@@ -9,6 +9,8 @@ import BoardPage from "./pages/BoardPage";
 import Layout from "./components/Layout";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import MembersPage from "./pages/MembersPage";
+import { ToastProvider } from "./context/ToastContext";
+import NotFoundPage from "./pages/NotFoundPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -20,23 +22,26 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route
-            element={
-              <ProtectedRoute>
-                <Layout />
-              </ProtectedRoute>
-            }
-          >
-            <Route path="/" element={<OrgsPage />} />
-            <Route path="/orgs/:orgId/projects" element={<ProjectsPage />} />
-            <Route path="/orgs/:orgId/projects/:projectId/board" element={<BoardPage />} />
-            <Route path="/orgs/:orgId/analytics" element={<AnalyticsPage />} />
-            <Route path="/orgs/:orgId/members" element={<MembersPage />} />
-          </Route>
-        </Routes>
+        <ToastProvider>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route path="/" element={<OrgsPage />} />
+              <Route path="/orgs/:orgId/projects" element={<ProjectsPage />} />
+              <Route path="/orgs/:orgId/projects/:projectId/board" element={<BoardPage />} />
+              <Route path="/orgs/:orgId/analytics" element={<AnalyticsPage />} />
+              <Route path="/orgs/:orgId/members" element={<MembersPage />} />
+              <Route path="*" element={<NotFoundPage />} />
+            </Route>
+          </Routes>
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   );

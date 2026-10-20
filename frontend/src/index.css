@@ -1,5 +1,25 @@
 @import "tailwindcss";
 
+@keyframes ticket-drawer-enter {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+.ticket-drawer {
+  animation: ticket-drawer-enter 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticket-drawer {
+    animation: none;
+  }
+}
+
 @layer base {
   html {
     color-scheme: dark;

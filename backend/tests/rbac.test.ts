@@ -134,6 +134,37 @@ describe("ticket updates", () => {
     expect(res.status).toBe(200);
     expect(res.body.ticket.assigneeId).toBe(contributor.user._id.toString());
   });
+
+  it("rejects oversized fields", async () => {
+    const { contributor, url, ticketsUrl } = await setupWithTicket();
+    const longTitle = await request(app).patch(url).set(asUser(contributor)).send({ title: "x".repeat(201) });
+    const longDescription = await request(app)
+      .patch(url)
+      .set(asUser(contributor))
+      .send({ description: "x".repeat(5001) });
+    const tooManyLabels = await request(app)
+      .patch(url)
+      .set(asUser(contributor))
+      .send({ labels: Array.from({ length: 11 }, (_, i) => `l${i}`) });
+    const longLabel = await request(app)
+      .patch(url)
+      .set(asUser(contributor))
+      .send({ labels: ["x".repeat(31)] });
+    const oversizedCreateTitle = await request(app)
+      .post(ticketsUrl)
+      .set(asUser(contributor))
+      .send({ title: "x".repeat(201) });
+    const oversizedCreate = await request(app)
+      .post(ticketsUrl)
+      .set(asUser(contributor))
+      .send({ title: "Valid", description: "x".repeat(5001) });
+    expect(longTitle.status).toBe(400);
+    expect(longDescription.status).toBe(400);
+    expect(tooManyLabels.status).toBe(400);
+    expect(longLabel.status).toBe(400);
+    expect(oversizedCreateTitle.status).toBe(400);
+    expect(oversizedCreate.status).toBe(400);
+  });
 });
 
 describe("input validation", () => {

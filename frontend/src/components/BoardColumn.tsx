@@ -12,11 +12,15 @@ const COLUMNS: Record<Status, { label: string; dot: string }> = {
 export default function BoardColumn({
   status,
   tickets,
-  orgId,
+  people,
+  canDrag,
+  onOpen,
 }: {
   status: Status;
   tickets: Ticket[];
-  orgId: string;
+  people: Map<string, { name: string }>;
+  canDrag: boolean;
+  onOpen: (ticketId: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   const { label, dot } = COLUMNS[status];
@@ -35,7 +39,13 @@ export default function BoardColumn({
       </div>
       <div className="space-y-2">
         {tickets.map((ticket) => (
-          <TicketCard key={ticket._id} ticket={ticket} orgId={orgId} />
+          <TicketCard
+            key={ticket._id}
+            ticket={ticket}
+            assignee={ticket.assigneeId ? people.get(ticket.assigneeId) : undefined}
+            canDrag={canDrag}
+            onOpen={onOpen}
+          />
         ))}
         {tickets.length === 0 && <p className="py-6 text-center text-xs text-slate-600">No tickets</p>}
       </div>
