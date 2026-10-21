@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   DndContext,
   MouseSensor,
@@ -10,16 +10,20 @@ import {
 } from "@dnd-kit/core";
 import * as ticketsApi from "../api/tickets";
 import BoardColumn from "../components/BoardColumn";
+import BoardSkeleton from "../components/BoardSkeleton";
 import TicketDrawer from "../components/TicketDrawer";
+import { useAuth } from "../context/authContext";
 import { useOrgMembers } from "../hooks/useOrgMembers";
 import { useToast } from "../context/toastContext";
 import { errorMessage } from "../lib/errors";
 import { connectSocket } from "../socket";
 
 const STATUSES: ticketsApi.Status[] = ["todo", "in_progress", "review", "done"];
+const PRIORITY_FILTERS: ticketsApi.Priority[] = ["urgent", "high", "medium", "low"];
 
 export default function BoardPage() {
   const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
+  const { user } = useAuth();
   const toast = useToast();
   const { members, canWrite, canDelete } = useOrgMembers(orgId);
 
@@ -27,9 +31,42 @@ export default function BoardPage() {
   const [newTitle, setNewTitle] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [query, setQuery] = useState("");
   const [searchResult, setSearchResult] = useState<{ q: string; ids: Set<string> } | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+
+  const [params, setParams] = useSearchParams();
+  const query = params.get("q") ?? "";
+  const assigneeFilter = params.get("assignee") ?? "";
+  const priorityFilter = params.get("priority") ?? "";
+  const boardFiltersActive = Boolean(assigneeFilter || priorityFilter);
+  const filtersActive = Boolean(query || boardFiltersActive);
+
+  function setFilter(key: "assignee" | "priority", value: string) {
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (value) next.set(key, value);
+        else next.delete(key);
+        return next;
+      },
+      { replace: true }
+    );
+  }
+
+  function setSearchQuery(value: string) {
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (value) next.set("q", value);
+        else next.delete("q");
+        return next;
+      },
+      { replace: true }
+    );
+  }
+
+  const searchRef = useRef<HTMLInputElement>(null);
+  const newTicketRef = useRef<HTMLInputElement>(null);
 
   const people = useMemo(
     () => new Map(members.flatMap((m) => (m.userId ? [[m.userId._id, m.userId] as const] : []))),
@@ -109,9 +146,37 @@ export default function BoardPage() {
     };
   }, [query, orgId, projectId]);
 
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey || openId) return;
+      const el = e.target as HTMLElement;
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName) || el.isContentEditable) return;
+
+      if (e.key === "/") {
+        e.preventDefault();
+        searchRef.current?.focus();
+      } else if (e.key === "n" && canWrite) {
+        e.preventDefault();
+        newTicketRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openId, canWrite]);
+
+  function matchesFilters(t: ticketsApi.Ticket) {
+    if (priorityFilter && t.priority !== priorityFilter) return false;
+    if (assigneeFilter === "me") return t.assigneeId === user?.id;
+    if (assigneeFilter === "none") return t.assigneeId === null;
+    if (assigneeFilter) return t.assigneeId === assigneeFilter;
+    return true;
+  }
+
   const trimmed = query.trim();
   const activeResult = trimmed.length >= 2 && searchResult?.q === trimmed ? searchResult : null;
-  const visibleTickets = activeResult ? tickets.filter((t) => activeResult.ids.has(t._id)) : tickets;
+  const visibleTickets = tickets.filter(
+    (t) => (!activeResult || activeResult.ids.has(t._id)) && matchesFilters(t)
+  );
   const openTicket = tickets.find((t) => t._id === openId) ?? null;
 
   async function handleCreateTicket(e: FormEvent) {
@@ -145,7 +210,7 @@ export default function BoardPage() {
     }
   }
 
-  if (loading) return <p className="text-slate-400">Loading board...</p>;
+  if (loading) return <BoardSkeleton />;
   if (error) return <p className="text-red-400">{error}</p>;
 
   return (
@@ -156,17 +221,19 @@ export default function BoardPage() {
         </Link>
         <div className="flex w-full flex-wrap gap-2 sm:w-auto">
           <input
+            ref={searchRef}
             type="search"
             className="input sm:w-56"
-            placeholder="Search tickets..."
+            placeholder="Search tickets...  ( / )"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
           {canWrite ? (
             <form onSubmit={handleCreateTicket} className="flex flex-1 gap-2 sm:flex-none">
               <input
+                ref={newTicketRef}
                 className="input sm:w-56"
-                placeholder="New ticket title"
+                placeholder="New ticket title  ( n )"
                 maxLength={200}
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
@@ -179,11 +246,46 @@ export default function BoardPage() {
         </div>
       </div>
 
-      {activeResult && (
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <select
+          className="input !w-auto"
+          value={assigneeFilter}
+          onChange={(e) => setFilter("assignee", e.target.value)}
+          aria-label="Filter by assignee"
+        >
+          <option value="">All assignees</option>
+          <option value="me">Assigned to me</option>
+          <option value="none">Unassigned</option>
+          {[...people.entries()].map(([id, person]) => (
+            <option key={id} value={id}>{person.name}</option>
+          ))}
+        </select>
+        <select
+          className="input !w-auto"
+          value={priorityFilter}
+          onChange={(e) => setFilter("priority", e.target.value)}
+          aria-label="Filter by priority"
+        >
+          <option value="">All priorities</option>
+          {PRIORITY_FILTERS.map((p) => (
+            <option key={p} value={p}>{p}</option>
+          ))}
+        </select>
+        {filtersActive && (
+          <button onClick={() => setParams({}, { replace: true })} className="btn-ghost">
+            Clear filters
+          </button>
+        )}
+      </div>
+
+      {trimmed.length >= 2 && !activeResult && (
+        <p className="mb-3 text-sm text-slate-400">Searching tickets...</p>
+      )}
+
+      {(boardFiltersActive || activeResult) && (
         <p className="mb-3 text-sm text-slate-400">
-          {activeResult.ids.size === 0
-            ? `No tickets match "${trimmed}"`
-            : `${activeResult.ids.size} ticket${activeResult.ids.size === 1 ? "" : "s"} match "${trimmed}"`}
+          Showing {visibleTickets.length} of {tickets.length} tickets
+          {activeResult && ` matching "${trimmed}"`}
         </p>
       )}
 

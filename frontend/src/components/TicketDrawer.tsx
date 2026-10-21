@@ -172,6 +172,7 @@ export default function TicketDrawer({
               ))}
             </select>
           </label>
+
           <label className="text-xs text-slate-400">
             Priority
             <select
@@ -185,6 +186,7 @@ export default function TicketDrawer({
               ))}
             </select>
           </label>
+
           <label className="col-span-2 text-xs text-slate-400">
             Assignee
             <select
@@ -199,6 +201,18 @@ export default function TicketDrawer({
               ))}
             </select>
           </label>
+
+          <label className="col-span-2 text-xs text-slate-400">
+            Due date
+            <input
+              type="date"
+              className="input mt-1"
+              value={ticket.dueDate?.slice(0, 10) ?? ""}
+              disabled={!canWrite}
+              onChange={(e) => save({ dueDate: e.target.value || null })}
+            />
+          </label>
+
           <label className="col-span-2 text-xs text-slate-400">
             Labels (comma separated)
             <input

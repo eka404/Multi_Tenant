@@ -150,6 +150,17 @@ export async function updateTicket(req: OrgScopedRequest, res: Response) {
     else return res.status(400).json({ message: "Assignee must be a member of this organization" });
   }
 
+    if ("dueDate" in body) {
+      if (body.dueDate === null) updates.dueDate = null;
+      else {
+        const parsed = typeof body.dueDate === "string" ? new Date(`${body.dueDate}T00:00:00.000Z`) : null;
+        if (!parsed || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== body.dueDate) {
+          return res.status(400).json({ message: "dueDate must be a real date like 2026-03-15, or null" });
+        }
+        updates.dueDate = parsed;
+      }
+    }
+
   if (Object.keys(updates).length === 0) return res.status(400).json({ message: "No valid fields to update" });
 
   if (typeof updates.status === "string") {

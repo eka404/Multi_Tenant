@@ -13,9 +13,12 @@ export interface Ticket {
   assigneeId: string | null;
   labels: string[];
   createdAt: string;
+  dueDate: string | null;
 }
 
-export type TicketPatch = Partial<Pick<Ticket, "title" | "description" | "status" | "priority" | "assigneeId" | "labels">>;
+export type TicketPatch = Partial<
+  Pick<Ticket, "title" | "description" | "status" | "priority" | "assigneeId" | "labels" | "dueDate">
+>;
 
 export async function listTickets(orgId: string, projectId: string) {
   const { data } = await api.get<{ tickets: Ticket[] }>(

@@ -17,6 +17,7 @@ const ticketSchema = new Schema(
         assigneeId:{type:Schema.Types.ObjectId, ref:"User", default:null},
         labels:{type:[String], default:[]},
         completedAt: { type: Date, default: null },
+        dueDate: { type: Date, default: null },
     },
     {timestamps:true}
 )

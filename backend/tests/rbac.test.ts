@@ -100,6 +100,24 @@ describe("ticket updates", () => {
     expect(saved?.orgId.toString()).toBe(org._id.toString());
   });
 
+  it("accepts a real due date, clears it with null, and rejects anything else", async () => {
+    const { contributor, ticket, url } = await setupWithTicket();
+
+    const set = await request(app).patch(url).set(asUser(contributor)).send({ dueDate: "2026-03-15" });
+    expect(set.status).toBe(200);
+    expect(set.body.ticket.dueDate.slice(0, 10)).toBe("2026-03-15");
+    expect((await Ticket.findById(ticket._id))?.dueDate?.toISOString()).toBe("2026-03-15T00:00:00.000Z");
+
+    for (const bad of ["tomorrow", "2026-02-31", "2026-3-5", 20260315]) {
+      const res = await request(app).patch(url).set(asUser(contributor)).send({ dueDate: bad });
+      expect(res.status).toBe(400);
+    }
+
+    const cleared = await request(app).patch(url).set(asUser(contributor)).send({ dueDate: null });
+    expect(cleared.status).toBe(200);
+    expect((await Ticket.findById(ticket._id))?.dueDate).toBeNull();
+  });
+
   it("rejects an update with no editable fields", async () => {
     const { contributor, url } = await setupWithTicket();
     const res = await request(app)

@@ -20,9 +20,9 @@ password for both: `demo-password-123`)
 
 Log in as each in two browser windows and drag a card in one to watch the other update.
 
-![Kanban board with ticket labels and assignee avatars](docs/screenshots/board-card.png)
+![Kanban board filtered by assignee and priority, showing an overdue ticket](docs/screenshots/board-card.png)
 
-![Ticket detail panel with editable fields, labels, assignee and live comments](docs/screenshots/ticket-detail.png)
+![Ticket detail panel with editable due date, labels and assignee](docs/screenshots/ticket-detail.png)
 
 ## Features
 
@@ -30,6 +30,7 @@ Log in as each in two browser windows and drag a card in one to watch the other 
 - **Member management.** Invite, change roles and remove or leave, with escalation rules (nobody can grant or modify a role at or above their own).
 - **Projects and a kanban board.** Drag tickets between Todo, In Progress, Review and Done.
 - **Ticket collaboration.** Ticket detail panel with inline editing (title, description, priority, status, assignee, labels), live-updating comments with @mentions, toast feedback, and a role-aware interface (guests get a read-only board).
+- **Due dates and focused boards.** Due dates are highlighted when overdue, due today, or upcoming. Assignee and priority filters are shareable URL parameters; `/` focuses search, `n` focuses new ticket, and loading skeletons preview the board while it loads.
 - **Ticket search.** Search tickets with a MongoDB full-text index, ranked by relevance and scoped to the organization.
 - **Analytics dashboard for leads and owners.** View status and priority breakdowns, weekly throughput, workload per person, and average cycle time.
 - **Real-time sync.** Changes appear on every collaborator's screen without a refresh, over Socket.io.
@@ -76,6 +77,7 @@ origins, so the backend's `CLIENT_ORIGIN` must match the Vercel site URL.
 - **Real-time rooms with authorization.** Each project is a Socket.io room. Joining checks that the user belongs to the project's organization, the same rule the REST routes use. The client re-joins and reloads the board after any reconnect, because rooms do not survive a dropped connection.
 - **Member removal and role changes.** Roles live in the database, not in the token, so role changes and removals apply on the next request. Because socket rooms outlive membership, removing a member also evicts them from the organization's project rooms. Members' tickets are unassigned on removal rather than deleted.
 - **Ticket editing and role-aware UI.** Fields save on blur and dropdowns save immediately. The role comes from the member list, so the UI hides actions you can't perform, but the server remains the authority and rejects them regardless.
+- **Due dates and board filters.** Due dates are stored as midnight UTC of the chosen calendar day, so no timezone can shift them, and overdue is computed from the date string rather than a timestamp. Filters are stored in URL query parameters so they survive reloads and can be shared as links.
 - **Optimistic drag-and-drop.** The card moves instantly and snaps back if the server rejects the change (for example, a guest trying to edit).
 - **Mass-assignment protection.** `PATCH /tickets/:id` accepts only an allow-list of fields. Without it, a client could send `orgId` and move a ticket into another tenant. Assignees must also be members of the organization.
 - **Search index and relevance.** Search uses a compound text index with `orgId` as the prefix, so queries are tenant-scoped and index-backed. Title matches are weighted 5x over description matches. Trade-off: `$text` matches whole stemmed words only.
@@ -180,6 +182,7 @@ Limitations I know about:
 - Rate-limit counters are in memory, so they are per server instance and reset when a server restarts. The free Redis instance is not persistent, so a restart clears the analytics cache. Running multiple servers with Socket.io's long-polling transport also needs sticky sessions at the load balancer.
 - Only existing users can be added (no email invitations), and ownership can't be transferred.
 - If someone else edits a ticket while its panel is open, the panel keeps your local text until it's reopened.
+- A board loads every ticket in the project, and filtering is done in the browser. That's fine at this scale, but pagination would be needed for thousands of tickets per project.
 - There is no email verification or password reset.
 - Socket events are not rate limited.
 - Search does not match partial words or typos.
