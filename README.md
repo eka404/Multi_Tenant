@@ -31,7 +31,7 @@ Log in as each in two browser windows and drag a card in one to watch the other 
 - **Projects and a kanban board.** Drag tickets between Todo, In Progress, Review and Done.
 - **Ticket collaboration.** Ticket detail panel with inline editing (title, description, priority, status, assignee, labels), live-updating comments with @mentions, toast feedback, and a role-aware interface (guests get a read-only board).
 - **Due dates and focused boards.** Due dates are highlighted when overdue, due today, or upcoming. Assignee and priority filters are shareable URL parameters; `/` focuses search, `n` focuses new ticket, and loading skeletons preview the board while it loads.
-- **Ticket search.** Search tickets with a MongoDB full-text index, ranked by relevance and scoped to the organization.
+- **Ticket search.** AI semantic search embeds tickets in the background with Voyage AI and ranks them by cosine similarity, so “authentication problem” can find “users get logged out.” It falls back to keyword search when the embeddings service is unavailable.
 - **Analytics dashboard for leads and owners.** View status and priority breakdowns, weekly throughput, workload per person, and average cycle time.
 - **Real-time sync.** Changes appear on every collaborator's screen without a refresh, over Socket.io.
 - **Redis integrations.** Redis-backed analytics caching and a Socket.io adapter support multiple servers. Redis is optional; rate limiting uses the in-memory store.
@@ -78,9 +78,11 @@ origins, so the backend's `CLIENT_ORIGIN` must match the Vercel site URL.
 - **Member removal and role changes.** Roles live in the database, not in the token, so role changes and removals apply on the next request. Because socket rooms outlive membership, removing a member also evicts them from the organization's project rooms. Members' tickets are unassigned on removal rather than deleted.
 - **Ticket editing and role-aware UI.** Fields save on blur and dropdowns save immediately. The role comes from the member list, so the UI hides actions you can't perform, but the server remains the authority and rejects them regardless.
 - **Due dates and board filters.** Due dates are stored as midnight UTC of the chosen calendar day, so no timezone can shift them, and overdue is computed from the date string rather than a timestamp. Filters are stored in URL query parameters so they survive reloads and can be shared as links.
+- **Asynchronous semantic embeddings.** Embeddings are generated through a batching queue with retry and backoff, so saving a ticket never waits on the embeddings API. A text hash skips tickets that haven't changed, and vectors live in a separate collection so ticket documents stay small. Vectors are stored per model name, so changing the model triggers an automatic re-embed.
+- **Semantic search service configuration.** Set `VOYAGE_API_KEY` in `backend/.env` to enable Voyage embeddings; leave it unset to use keyword search.
 - **Optimistic drag-and-drop.** The card moves instantly and snaps back if the server rejects the change (for example, a guest trying to edit).
 - **Mass-assignment protection.** `PATCH /tickets/:id` accepts only an allow-list of fields. Without it, a client could send `orgId` and move a ticket into another tenant. Assignees must also be members of the organization.
-- **Search index and relevance.** Search uses a compound text index with `orgId` as the prefix, so queries are tenant-scoped and index-backed. Title matches are weighted 5x over description matches. Trade-off: `$text` matches whole stemmed words only.
+- **Keyword fallback search.** When semantic search is disabled or unavailable, search uses a compound text index with `orgId` as the prefix, so queries are tenant-scoped and index-backed. Title matches are weighted 5x over description matches.
 - **Analytics aggregation.** Analytics use a single `$facet` aggregation, so MongoDB scans the organization's tickets once and returns every chart's data together. The match on `orgId` uses the existing compound index. A `completedAt` field is set when a ticket enters Done, which makes cycle time possible. Trade-off: this records only the latest completion, not the full status history, so reopened tickets lose their earlier completion time.
 - **Redis cache and rate limits.** Analytics use cache-aside for 60 seconds. Entries are invalidated by bumping a per-organization version number included in the key, avoiding a Redis key scan; the TTL is the safety net. Concurrent cache misses for the same key share one database computation. If Redis is unavailable, analytics fall back to querying the database. Rate limits use in-memory counters, so they are per server instance and reset when that server restarts.
 - **Socket.io scaling.** A Redis adapter broadcasts socket events across backend servers. Multiple servers using Socket.io's long-polling transport also need sticky sessions at the load balancer.
@@ -90,7 +92,7 @@ origins, so the backend's `CLIENT_ORIGIN` must match the Vercel site URL.
 
 ## Testing and CI/CD
 
-- **Tests:** Integration tests cover authentication, tenant isolation, role permissions and Redis-backed analytics caching (Vitest + Supertest).
+- **Tests:** Integration tests cover authentication, tenant isolation, role permissions, semantic search and keyword fallback, and Redis-backed analytics caching (Vitest + Supertest). Embeddings tests use a local fake provider and make no network calls.
 - **CI** (GitHub Actions, pushes to `main`/`master` and pull requests): backend type-check, tests against MongoDB and Redis service containers, and build; frontend lint and build; Docker image builds.
 - **CD:** on a push to the default branch, after every CI job passes, GitHub Actions triggers a Render deploy hook. Vercel deployments are handled by the Vercel Git integration when enabled.
 
@@ -130,7 +132,8 @@ MONGO_URI="<your MongoDB connection string>" npm run seed
 
 The script is safe to re-run when the demo owner already exists. It creates
 accounts with the shared demo password shown above; do not use this seed on a
-database containing real user data.
+database containing real user data. With `VOYAGE_API_KEY` configured, run
+`npm run embed` after seeding to generate embeddings for the demo tickets.
 
 ## Run it locally
 
@@ -149,6 +152,7 @@ docker compose up --build
 # MONGO_URI=mongodb://127.0.0.1:27017/issue-tracker
 # JWT_ACCESS_SECRET=change-me
 # JWT_REFRESH_SECRET=change-me-too
+# VOYAGE_API_KEY=your-voyage-api-key  # optional; unset uses keyword search
 
 cd backend && npm install && npm run dev
 
@@ -185,7 +189,8 @@ Limitations I know about:
 - A board loads every ticket in the project, and filtering is done in the browser. That's fine at this scale, but pagination would be needed for thousands of tickets per project.
 - There is no email verification or password reset.
 - Socket events are not rate limited.
-- Search does not match partial words or typos.
+- Semantic ranking uses brute-force cosine similarity over the 2,000 most recently updated tickets in scope; Atlas Vector Search would be the next step for larger projects. Ticket text is sent to an external embeddings provider, so a real product should make this opt-in per organization.
+- Keyword fallback does not match partial words or typos.
 - The free host sleeps when idle, so the first request after a quiet period is slow.
 
 Planned next:

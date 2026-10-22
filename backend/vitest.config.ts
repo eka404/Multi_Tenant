@@ -12,6 +12,7 @@ export default defineConfig({
       JWT_ACCESS_SECRET: "test-access-secret",
       JWT_REFRESH_SECRET: "test-refresh-secret",
       REDIS_URL: process.env.TEST_REDIS_URL ?? "",
+      VOYAGE_API_KEY: "",
     },
   },
 });

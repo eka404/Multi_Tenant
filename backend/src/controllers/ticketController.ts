@@ -6,14 +6,16 @@ import { invalidateAnalytics } from "../lib/cache.js";
 import { getIO } from "../socket.js";
 import { Membership } from "../models/Membership.js";
 import { isObjectId } from "../middlewares/validateId.js";
+import { queueEmbedding } from "../lib/embeddingQueue.js";
+import { TicketEmbedding } from "../models/TicketEmbedding.js";
 
 async function isOrgMember(userId: string, orgId: string) {
   return (await Membership.exists({ userId, orgId })) !== null;
 }
 
 async function assertProjectInOrg(projectId:string, orgId:string) {
-    const project = await Project.findOne({_id:projectId, orgId});
-    return project !== null;
+  const project = await Project.findOne({_id:projectId, orgId});
+  return project !== null;
 }
 
 function isPriority(value: unknown): value is (typeof PRIORITIES)[number] {
@@ -81,15 +83,16 @@ export async function createTicket(req: OrgScopedRequest, res: Response) {
     labels,
     createdBy: req.userId,
   });
+  queueEmbedding(ticket._id.toString());
   await invalidateAnalytics(req.membership!.orgId);
   getIO().to(`project:${ticket.projectId}`).emit("ticket:created", ticket);
   res.status(201).json({ ticket });
 }
 
 export async function listTickets(req:OrgScopedRequest, res:Response) {
-    const {projectId} = req.params;
-    const tickets = await Ticket.find({orgId:req.membership!.orgId, projectId}).sort({createdAt:-1});
-    res.json({tickets});
+  const {projectId} = req.params;
+  const tickets = await Ticket.find({orgId:req.membership!.orgId, projectId}).sort({createdAt:-1});
+  res.json({tickets});
 }
 
 export async function updateTicket(req: OrgScopedRequest, res: Response) {
@@ -150,16 +153,16 @@ export async function updateTicket(req: OrgScopedRequest, res: Response) {
     else return res.status(400).json({ message: "Assignee must be a member of this organization" });
   }
 
-    if ("dueDate" in body) {
-      if (body.dueDate === null) updates.dueDate = null;
-      else {
-        const parsed = typeof body.dueDate === "string" ? new Date(`${body.dueDate}T00:00:00.000Z`) : null;
-        if (!parsed || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== body.dueDate) {
-          return res.status(400).json({ message: "dueDate must be a real date like 2026-03-15, or null" });
-        }
-        updates.dueDate = parsed;
+  if ("dueDate" in body) {
+    if (body.dueDate === null) updates.dueDate = null;
+    else {
+      const parsed = typeof body.dueDate === "string" ? new Date(`${body.dueDate}T00:00:00.000Z`) : null;
+      if (!parsed || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== body.dueDate) {
+        return res.status(400).json({ message: "dueDate must be a real date like 2026-03-15, or null" });
       }
+      updates.dueDate = parsed;
     }
+  }
 
   if (Object.keys(updates).length === 0) return res.status(400).json({ message: "No valid fields to update" });
 
@@ -169,10 +172,10 @@ export async function updateTicket(req: OrgScopedRequest, res: Response) {
     if (updates.status === "done" && current.status !== "done") updates.completedAt = new Date();
     if (updates.status !== "done") updates.completedAt = null;
   }
-  
+
   const ticket = await Ticket.findOneAndUpdate({ _id: ticketId, orgId }, { $set: updates }, { new: true });
   if (!ticket) return res.status(404).json({ message: "Ticket not found" });
-
+  if ("title" in updates || "description" in updates || "labels" in updates) queueEmbedding(ticket._id.toString());
   await invalidateAnalytics(orgId);
   getIO().to(`project:${ticket.projectId}`).emit("ticket:updated", ticket);
   res.json({ ticket });
@@ -182,6 +185,7 @@ export async function deleteTicket(req: OrgScopedRequest, res: Response) {
     const { ticketId } = req.params;
     const ticket = await Ticket.findOneAndDelete({ _id: ticketId, orgId: req.membership!.orgId });
     if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+    await TicketEmbedding.deleteOne({ ticketId: ticket._id });
     await invalidateAnalytics(req.membership!.orgId);
     getIO().to(`project:${ticket.projectId}`).emit("ticket:deleted", { ticketId });
     res.json({ message: "Deleted" });

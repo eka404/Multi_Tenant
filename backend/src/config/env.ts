@@ -16,4 +16,6 @@ export const env = {
   redisUrl: process.env.REDIS_URL?.trim() || undefined,
   isTest: process.env.NODE_ENV === "test",
   disableRateLimits: process.env.DISABLE_RATE_LIMITS === "1" && process.env.NODE_ENV !== "production",
+  voyageApiKey: process.env.VOYAGE_API_KEY?.trim() || undefined,
+  embeddingModel: process.env.EMBEDDING_MODEL?.trim() || "voyage-3.5-lite",
 };

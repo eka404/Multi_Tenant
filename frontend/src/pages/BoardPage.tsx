@@ -31,7 +31,13 @@ export default function BoardPage() {
   const [newTitle, setNewTitle] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [searchResult, setSearchResult] = useState<{ q: string; ids: Set<string> } | null>(null);
+  const [smart, setSmart] = useState(true);
+  const [searchResult, setSearchResult] = useState<{
+    q: string;
+    smart: boolean;
+    mode: "semantic" | "keyword";
+    ids: Set<string>;
+  } | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
 
   const [params, setParams] = useSearchParams();
@@ -129,22 +135,24 @@ export default function BoardPage() {
     if (!orgId || !projectId || q.length < 2) return;
 
     let cancelled = false;
-    const timer = setTimeout(() => {
-      ticketsApi
-        .searchTickets(orgId, q, projectId)
-        .then((found) => {
-          if (!cancelled) setSearchResult({ q, ids: new Set(found.map((t) => t._id)) });
-        })
-        .catch(() => {
-          if (!cancelled) setSearchResult({ q, ids: new Set() });
-        });
-    }, 300);
-
+    const timer = setTimeout(
+      () => {
+        ticketsApi
+          .searchTickets(orgId, q, projectId, smart)
+          .then(({ tickets: found, mode }) => {
+            if (!cancelled) setSearchResult({ q, smart, mode, ids: new Set(found.map((t) => t._id)) });
+          })
+          .catch(() => {
+            if (!cancelled) setSearchResult({ q, smart, mode: "keyword", ids: new Set() });
+          });
+      },
+      smart ? 500 : 300
+    );
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [query, orgId, projectId]);
+  }, [query, smart, orgId, projectId]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -173,7 +181,8 @@ export default function BoardPage() {
   }
 
   const trimmed = query.trim();
-  const activeResult = trimmed.length >= 2 && searchResult?.q === trimmed ? searchResult : null;
+  const activeResult =
+    trimmed.length >= 2 && searchResult?.q === trimmed && searchResult.smart === smart ? searchResult : null;
   const visibleTickets = tickets.filter(
     (t) => (!activeResult || activeResult.ids.has(t._id)) && matchesFilters(t)
   );
@@ -228,6 +237,10 @@ export default function BoardPage() {
             value={query}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
+          <label className="flex items-center gap-1 self-center text-xs text-slate-400">
+            <input type="checkbox" checked={smart} onChange={(e) => setSmart(e.target.checked)} />
+            ✨ Smart
+          </label>
           {canWrite ? (
             <form onSubmit={handleCreateTicket} className="flex flex-1 gap-2 sm:flex-none">
               <input
@@ -282,10 +295,12 @@ export default function BoardPage() {
         <p className="mb-3 text-sm text-slate-400">Searching tickets...</p>
       )}
 
-      {(boardFiltersActive || activeResult) && (
+      {(filtersActive || activeResult) && (
         <p className="mb-3 text-sm text-slate-400">
           Showing {visibleTickets.length} of {tickets.length} tickets
           {activeResult && ` matching "${trimmed}"`}
+          {activeResult && smart && activeResult.mode === "semantic" && " · smart search"}
+          {activeResult && smart && activeResult.mode === "keyword" && " · smart search unavailable, used keyword search"}
         </p>
       )}
 

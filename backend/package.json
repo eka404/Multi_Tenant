@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "seed": "tsx src/scripts/seed.ts",
-    "load-data": "tsx src/scripts/loadData.ts"
+    "load-data": "tsx src/scripts/loadData.ts",
+    "embed": "tsx src/scripts/embedAll.ts"
   },
   "keywords": [],
   "author": "",
