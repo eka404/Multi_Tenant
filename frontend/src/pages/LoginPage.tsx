@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import { useAuth } from "../context/authContext";
 import AuthShell from "../components/AuthShell";
+import SlowHint from "../components/SlowHint";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -20,11 +21,8 @@ export default function LoginPage() {
       await login(email, password);
       navigate("/");
     } catch (err) {
-      if (axios.isAxiosError(err) && err.response) {
-        setError(err.response.data?.message ?? "Login failed");
-      } else {
-        setError("Could not reach the server");
-      }
+      if (axios.isAxiosError(err) && err.response) setError(err.response.data?.message ?? "Login failed");
+      else setError("Could not reach the server");
     } finally {
       setSubmitting(false);
     }
@@ -49,6 +47,7 @@ export default function LoginPage() {
         <button type="submit" disabled={submitting} className="btn-primary w-full">
           {submitting ? "Logging in..." : "Log in"}
         </button>
+        {submitting && <SlowHint />}
       </form>
       <p className="mt-4 text-center text-sm text-slate-400">
         No account? <Link to="/register" className="text-indigo-400 hover:underline">Register</Link>

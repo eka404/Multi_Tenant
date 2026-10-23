@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import { useAuth } from "../context/authContext";
 import AuthShell from "../components/AuthShell";
+import SlowHint from "../components/SlowHint";
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -55,6 +56,7 @@ export default function RegisterPage() {
         <button type="submit" disabled={submitting} className="btn-primary w-full">
           {submitting ? "Creating account..." : "Register"}
         </button>
+        {submitting && <SlowHint />}
       </form>
       <p className="mt-4 text-center text-sm text-slate-400">
         Have an account? <Link to="/login" className="text-indigo-400 hover:underline">Log in</Link>

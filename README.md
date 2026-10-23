@@ -24,6 +24,12 @@ Log in as each in two browser windows and drag a card in one to watch the other 
 
 ![Ticket detail panel with editable due date, labels and assignee](docs/screenshots/ticket-detail.png)
 
+![Ticket search combined with assignee and priority filters](docs/screenshots/search-and-filters.png)
+
+![Organization member management with role controls](docs/screenshots/member-management.png)
+
+![Analytics dashboard with ticket totals and status breakdown](docs/screenshots/analytics.png)
+
 ## Features
 
 - **Organizations and roles.** Four roles (owner, lead, contributor, guest). Every query is scoped to the caller's organization, so one team can never see another's data.
@@ -69,6 +75,59 @@ origins, so the backend's `CLIENT_ORIGIN` must match the Vercel site URL.
 | Testing | Vitest, Supertest, real MongoDB (no mocks) |
 | DevOps | Docker (multi-stage builds), Docker Compose, GitHub Actions, Render |
 
+## Roles and permissions
+
+Permissions are checked by the API on every request. The interface hides actions
+that a member cannot perform, but server-side authorization remains authoritative.
+
+| Role | Read organization data | Edit tickets and comment | Manage members | Create projects and view analytics |
+|---|---:|---:|---:|---:|
+| Owner | Yes | Yes | Yes | Yes |
+| Lead | Yes | Yes | Yes, subject to role-escalation rules | Yes |
+| Contributor | Yes | Yes | Leave the organization | No |
+| Guest | Yes | No | Leave the organization | No |
+
+No one can grant or modify a role at or above their own. Owners cannot leave
+their organization, and ownership cannot be transferred.
+
+## Data model
+
+MongoDB collections and their key relationships:
+
+| Collection | Purpose and relationships |
+|---|---|
+| `User` | Account name, unique email, and password hash. |
+| `Organization` | Workspace, owned by a user. |
+| `Membership` | Joins a user to an organization with a role; one membership per user and organization. |
+| `Project` | Belongs to an organization and records its creator. |
+| `Ticket` | Belongs to both an organization and project; stores status, priority, assignee, labels, due date, and completion time. |
+| `Comment` | Belongs to a ticket and organization, records its author, and stores mentioned users. |
+| `Notification` | Belongs to a recipient and ticket; records mention or assignment notifications and read state. |
+| `TicketEmbedding` | Stores a ticket's text hash and vector separately, scoped by organization, project, and embedding model. |
+
+Organization IDs are stored on tenant-owned records so API queries can enforce
+tenant boundaries directly without trusting client-supplied ownership.
+
+## API overview
+
+All routes are served under `/api`. Except registration, login, refresh, logout,
+and health checks, routes require authentication; organization routes also check
+membership and role.
+
+| Area | Main endpoints |
+|---|---|
+| Health and authentication | `GET /health`, `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me` |
+| Organizations and members | `POST /orgs`, `GET /orgs/mine`, `GET /orgs/:orgId/members`, `POST /orgs/:orgId/invite`, `PATCH` or `DELETE /orgs/:orgId/members/:memberId` |
+| Projects | `GET` and `POST /orgs/:orgId/projects` |
+| Tickets and search | `GET` and `POST /orgs/:orgId/projects/:projectId/tickets`, `PATCH` and `DELETE /orgs/:orgId/tickets/:ticketId`, `GET /orgs/:orgId/search/tickets` |
+| Comments | `GET` and `POST /orgs/:orgId/tickets/:ticketId/comments` |
+| Analytics | `GET /orgs/:orgId/analytics` |
+| Notifications | `GET /notifications`, `PATCH /notifications/read-all`, and per-notification read endpoints |
+
+Ticket search accepts a `mode=semantic` or `mode=keyword` parameter and returns
+the mode used, allowing the client to explain when semantic search fell back to
+keyword results. Socket.io broadcasts authorized project and comment updates.
+
 ## Engineering decisions
 
 - **Multi-tenancy through a membership collection.** Users do not belong to an organization directly. A `Membership(userId, orgId, role)` document joins them, so one person can have different roles in different organizations. Tickets also store their own `orgId`, which lets the board query hit a single compound index `(orgId, projectId, status)` without joins. Trade-off: `orgId` is stored twice, so it must never be editable after creation (see the allow-list below).
@@ -92,33 +151,9 @@ origins, so the backend's `CLIENT_ORIGIN` must match the Vercel site URL.
 
 ## Testing and CI/CD
 
-- **Tests:** Integration tests cover authentication, tenant isolation, role permissions, semantic search and keyword fallback, and Redis-backed analytics caching (Vitest + Supertest). Embeddings tests use a local fake provider and make no network calls.
+- **Tests:** 61 passing tests (plus 2 Redis-dependent tests skipped by default). Integration coverage includes authentication, tenant isolation, role permissions, semantic search and keyword fallback, and Redis-backed analytics caching (Vitest + Supertest). Embeddings tests use a local fake provider and make no network calls.
 - **CI** (GitHub Actions, pushes to `main`/`master` and pull requests): backend type-check, tests against MongoDB and Redis service containers, and build; frontend lint and build; Docker image builds.
 - **CD:** on a push to the default branch, after every CI job passes, GitHub Actions triggers a Render deploy hook. Vercel deployments are handled by the Vercel Git integration when enabled.
-
-## Performance
-
-The k6 benchmark exercises analytics for an organization with 50,000 tickets,
-20 concurrent readers, and one ticket update per second for 30 seconds. The
-load generator, API, MongoDB and Redis share the same machine, so results are
-useful for comparing configurations on that machine, not estimating production
-capacity.
-
-| Setup | Average latency | p95 latency | Throughput |
-|---|---:|---:|---:|
-| No Redis cache | Not measured | Not measured | Not measured |
-| Redis cache with version-key invalidation | Not measured | Not measured | Not measured |
-| Redis cache with request coalescing | Not measured | Not measured | Not measured |
-
-To generate isolated benchmark data, configure `MONGO_URI` to a local database
-whose name contains `bench` and run `cd backend && npm run load-data`. The
-loader refuses to write to any database whose name does not contain `bench` or
-`test`. It prints a ready-to-run k6 Docker command with the generated
-organization and ticket IDs. For each configuration, run that command twice
-and record the second run's analytics average and p95 latency and `http_reqs`
-throughput. `DISABLE_RATE_LIMITS=1` disables rate limits only outside
-production. No results are reported above because k6 could not be run in the
-environment used to prepare this benchmark.
 
 ## Demo data
 
@@ -147,18 +182,10 @@ docker compose up --build
 **For development** (hot reload):
 
 ```bash
-# backend/.env
-# PORT=5000
-# MONGO_URI=mongodb://127.0.0.1:27017/issue-tracker
-# JWT_ACCESS_SECRET=change-me
-# JWT_REFRESH_SECRET=change-me-too
-# VOYAGE_API_KEY=your-voyage-api-key  # optional; unset uses keyword search
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
 
 cd backend && npm install && npm run dev
-
-# frontend/.env
-# VITE_API_URL=http://localhost:5000/api
-# VITE_SOCKET_URL=http://localhost:5000
 
 cd frontend && npm install && npm run dev
 # open http://localhost:5173

@@ -11,10 +11,18 @@ import AnalyticsPage from "./pages/AnalyticsPage";
 import MembersPage from "./pages/MembersPage";
 import { ToastProvider } from "./context/ToastContext";
 import NotFoundPage from "./pages/NotFoundPage";
+import SlowHint from "./components/SlowHint";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return <p>Loading...</p>;
+  if (loading) {
+    return (
+      <div className="py-20 text-center text-slate-400">
+        <p>Loading...</p>
+        <SlowHint />
+      </div>
+    );
+  }
   return user ? <>{children}</> : <Navigate to="/login" />;
 }
 
