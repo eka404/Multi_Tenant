@@ -194,15 +194,15 @@ cd frontend && npm install && npm run dev
 **Tests:**
 
 ```bash
-docker run -d --name mongo-test -p 27017:27017 mongo:7
+docker compose --profile test up -d mongo-test redis-test
 cd backend && npm test
 ```
 
-By default, the Redis-backed cache tests are skipped. To run them locally, start
-Redis and set `TEST_REDIS_URL`:
+The test profile starts the MongoDB instance required by the integration tests.
+By default, the Redis-backed cache tests are skipped. To run them, set
+`TEST_REDIS_URL`:
 
 ```bash
-docker run -d --name redis-test -p 6379:6379 redis:7
 cd backend && TEST_REDIS_URL=redis://127.0.0.1:6379 npm test
 ```
 
